@@ -291,14 +291,16 @@ class SuieApp:
         while True:
             try:
                 self.poll_and_update()
-                logger.info("Sleeping for %d seconds...", poll_interval)
-                time.sleep(poll_interval)
             except KeyboardInterrupt:
                 logger.info("Received interrupt, shutting down...")
                 break
             except Exception as e:
                 logger.error("Error in main loop: %s", e, exc_info=True)
-                time.sleep(poll_interval)
+
+            # Always save request log before sleeping (catches any missed saves)
+            self.client.save_request_log()
+            logger.info("Sleeping for %d seconds...", poll_interval)
+            time.sleep(poll_interval)
 
         # Final save of request log
         self.client.save_request_log()
