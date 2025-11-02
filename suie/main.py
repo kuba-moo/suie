@@ -777,6 +777,21 @@ class SuieApp:
         reviewers_full.sort()
         reviewers_partial.sort()
 
+        # Get Lore URL - try cover letter first, then first patch
+        lore_url = series.get("list_archive_url")
+        if not lore_url:
+            # Try cover letter
+            cover_letter = self.state.get_cover_letter(series["id"])
+            if cover_letter:
+                lore_url = cover_letter.get("list_archive_url")
+            
+            # If still no URL, try first patch
+            if not lore_url and series_score.patch_scores:
+                first_patch_id = series_score.patch_scores[0].patch_id
+                first_patch = self.state.patches.get(first_patch_id)
+                if first_patch:
+                    lore_url = first_patch.get("list_archive_url")
+
         return {
             "id": series["id"],
             "title": series.get("name") or "No title",
@@ -789,7 +804,7 @@ class SuieApp:
             "delegates": delegates_in_series,
             "reviewers_full": reviewers_full,
             "reviewers_partial": reviewers_partial,
-            "lore_url": series.get("list_archive_url"),
+            "lore_url": lore_url,
             "patchwork_url": series.get("web_url"),
             "checks_summary": {
                 "failed": sorted(series_failed_checks),
