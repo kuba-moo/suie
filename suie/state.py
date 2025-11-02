@@ -181,7 +181,7 @@ class StateManager:
 
         # A series is inactive if all patches are archived
         # or in a terminal state like "accepted" or "rejected"
-        inactive_states = {'accepted', 'rejected', 'superseded', 'deferred', 'not-applicable'}
+        inactive_states = {'accepted', 'rejected', 'superseded', 'deferred', 'not-applicable', 'changes-requested'}
 
         for patch in patches:
             if not patch.get('archived', False):
