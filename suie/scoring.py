@@ -119,6 +119,37 @@ class DeveloperDatabase:
 
         return None
 
+    def _find_in_stats(self, email: str) -> Optional[str]:
+        """
+        Find an individual in stats by email.
+        Stats keys are in "Name <email>" format, but we might only have the email.
+        
+        Args:
+            email: Email address to search for
+            
+        Returns:
+            The stats key if found, None otherwise
+        """
+        individual_stats = self.stats.get('individual', {})
+        
+        # First try canonical identity (might be "Name <email>" if in mailmap)
+        canonical = self.get_canonical_identity(email)
+        if canonical in individual_stats:
+            return canonical
+        
+        # If not found, try matching by email within the keys
+        # Stats keys are in "Name <email>" format
+        for key in individual_stats:
+            # Extract email from "Name <email>" format
+            email_match = re.search(r'<([^>]+)>', key)
+            if email_match and email_match.group(1) == email:
+                return key
+            # Also try direct match if key is just an email
+            if key == email:
+                return key
+        
+        return None
+
     def get_reviewer_score(self, email: str) -> float:
         """
         Get the reviewer score for an individual
@@ -129,11 +160,11 @@ class DeveloperDatabase:
         Returns:
             Reviewer score (higher is better, negative values indicate less experienced reviewers)
         """
-        canonical = self.get_canonical_identity(email)
         individual_stats = self.stats.get('individual', {})
-
-        if canonical in individual_stats:
-            score_data = individual_stats[canonical].get('score', {})
+        stats_key = self._find_in_stats(email)
+        
+        if stats_key:
+            score_data = individual_stats[stats_key].get('score', {})
             return score_data.get('positive', 0)
 
         return 0

@@ -235,9 +235,8 @@ class SuieApp:
                 # Log if commenter is not in ml-stats
                 email = submitter.get('email') or ''
                 if email:
-                    canonical_id = self.dev_db.get_canonical_identity(email)
-                    individual_stats = self.dev_db.stats.get('individual', {})
-                    if canonical_id not in individual_stats:
+                    stats_key = self.dev_db._find_in_stats(email)
+                    if not stats_key:
                         logger.info(
                             "Commenter %s (%s) not found in ml-stats for series #%d",
                             name, email, series_id
@@ -741,9 +740,8 @@ class SuieApp:
             author_company = self.dev_db.get_company(author_email)
             
             # Warn if author is not found in ml-stats
-            canonical_id = self.dev_db.get_canonical_identity(author_email)
-            individual_stats = self.dev_db.stats.get('individual', {})
-            if canonical_id not in individual_stats:
+            stats_key = self.dev_db._find_in_stats(author_email)
+            if not stats_key:
                 logger.warning(
                     "Author %s (%s) not found in ml-stats for series #%d: %s",
                     author_name, author_email, series["id"], series.get("name", "")
@@ -847,8 +845,8 @@ class SuieApp:
                         canonical_email = email
 
                     # Check if reviewer is in ml-stats
-                    individual_stats = self.dev_db.stats.get('individual', {})
-                    if canonical_id not in individual_stats:
+                    stats_key = self.dev_db._find_in_stats(email)
+                    if not stats_key:
                         logger.info(
                             "Reviewer %s (%s) not found in ml-stats for series #%d",
                             name, email, series["id"]
