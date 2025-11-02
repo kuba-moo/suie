@@ -182,9 +182,12 @@ class SuieApp:
         expected_checks = self.config['ui'].get('expected_checks', [])
 
         # Aggregate check status across all patches
-        all_failed_checks = set()
-        all_missing_checks = set()
-        all_passing_checks = set()
+        # For each check context, track the worst state across all patches
+        # Priority: missing > fail > warning > success
+        check_states = {}  # check_context -> worst_state
+
+        # Collect all check contexts that should exist
+        all_check_contexts = set(expected_checks)
 
         for patch_score in series_score.patch_scores:
             patch_id = patch_score.patch_id
@@ -193,21 +196,46 @@ class SuieApp:
                 continue
 
             checks = self.state.get_patch_checks(patch_id)
-
-            # Check for failed checks
-            for check in checks:
-                state = check.get('state')
-                context = check.get('context', 'unknown')
-                if state in ['fail', 'warning']:
-                    all_failed_checks.add(context)
-                elif state == 'success':
-                    all_passing_checks.add(context)
-
-            # Check for missing checks
             present_checks = {c.get('context') for c in checks}
-            for expected in expected_checks:
-                if expected not in present_checks:
-                    all_missing_checks.add(expected)
+
+            # Add all present check contexts
+            all_check_contexts.update(present_checks)
+
+            # For each check context, determine status for this patch
+            for context in all_check_contexts:
+                if context not in present_checks:
+                    # Check is missing for this patch - highest priority
+                    check_states[context] = 'missing'
+                else:
+                    # Find the check's state for this patch
+                    check = next((c for c in checks if c.get('context') == context), None)
+                    if check:
+                        state = check.get('state', 'unknown')
+                        current_worst = check_states.get(context, 'success')
+
+                        # Update to worst state (priority: missing > fail > warning > success)
+                        if current_worst == 'missing':
+                            # Already at worst state, keep it
+                            pass
+                        elif state == 'fail' or current_worst == 'fail':
+                            check_states[context] = 'fail'
+                        elif state == 'warning' or current_worst == 'warning':
+                            check_states[context] = 'warning'
+                        else:
+                            check_states[context] = state
+
+        # Categorize checks by their series-level status
+        series_failed_checks = []
+        series_missing_checks = []
+        series_passing_checks = []
+
+        for context, state in check_states.items():
+            if state == 'missing':
+                series_missing_checks.append(context)
+            elif state in ['fail', 'warning']:
+                series_failed_checks.append(context)
+            elif state == 'success':
+                series_passing_checks.append(context)
 
         # Prepare patch data
         patches_data = []
@@ -273,9 +301,9 @@ class SuieApp:
             'patches': patches_data,
             'delegates': delegates_in_series,
             'checks_summary': {
-                'failed': sorted(all_failed_checks),
-                'missing': sorted(all_missing_checks),
-                'passing': len(all_passing_checks)
+                'failed': sorted(series_failed_checks),
+                'missing': sorted(series_missing_checks),
+                'passing': len(series_passing_checks)
             }
         }
 
