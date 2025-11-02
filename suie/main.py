@@ -732,8 +732,13 @@ class SuieApp:
 
         # Get author name and company
         submitter = series.get("submitter", {})
-        author_name = submitter.get("name", submitter.get("email", "Unknown"))
         author_email = submitter.get("email", "")
+        author_name = submitter.get("name", "")
+        
+        # If name is missing or empty, use email address
+        if not author_name or not author_name.strip():
+            author_name = author_email if author_email else "Unknown"
+        
         author_company = None
         
         if author_email:
