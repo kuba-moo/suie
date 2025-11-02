@@ -687,6 +687,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </select>
                 </div>
                 <div class="control-group">
+                    <button id="fold-all" title="Collapse all expanded series">Fold All</button>
+                </div>
+                <div class="control-group">
                     <button id="theme-toggle" title="Toggle dark mode">🌓</button>
                 </div>
             </div>
@@ -714,6 +717,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Event listeners
             document.getElementById('hide-inactive').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
+            document.getElementById('fold-all').addEventListener('click', foldAllSeries);
             document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
         });
 
@@ -1318,6 +1322,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     weekend: ''
                 };
             }
+        }
+
+        function foldAllSeries() {
+            // Collapse all expanded series
+            const expandedRows = document.querySelectorAll('.series-row.expanded');
+            expandedRows.forEach(row => {
+                row.classList.remove('expanded');
+            });
         }
 
         function updateStats() {
