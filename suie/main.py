@@ -655,7 +655,8 @@ class SuieApp:
         author_company = self.dev_db.get_company(author_email)
 
         # Track which reviewers reviewed which patches
-        reviewer_patch_count = {}  # reviewer_name -> set of patch_ids
+        # Use email as key to properly deduplicate, store name separately
+        reviewer_data = {}  # canonical_email -> {'name': str, 'patches': set}
         total_patches = len(series_score.patch_scores)
 
         for patch_score in series_score.patch_scores:
@@ -664,28 +665,109 @@ class SuieApp:
             if not patch:
                 continue
 
-            # Get reviewer emails for this patch (Reviewed-by and Acked-by only)
-            reviewer_emails = self._extract_reviewer_emails(patch)
+            # Extract review tags with email addresses from the patch
+            # This preserves the full names as they appear in the patch
+            import re
+            headers = patch.get("headers", {})
+            tag_headers = ["Reviewed-by", "Acked-by"]
 
-            # Filter out reviewers from same company as author
-            for email in reviewer_emails:
+            for tag_type in tag_headers:
+                values = headers.get(tag_type, [])
+                if not isinstance(values, list):
+                    values = [values]
+
+                for value in values:
+                    # Extract both name and email from "Name <email>" format
+                    match = re.match(r"^(.+?)\s*<([^>]+)>", value)
+                    if match:
+                        name = match.group(1).strip()
+                        email = match.group(2).strip()
+                    else:
+                        # Try to extract just email
+                        email_match = re.search(
+                            r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
+                        )
+                        if email_match:
+                            email = email_match.group(1)
+                            name = self._extract_name_from_identity(email)
+                        else:
+                            continue
+
+                    # Check if this is an external reviewer
+                    reviewer_company = self.dev_db.get_company(email)
+                    if reviewer_company != author_company or author_company is None:
+                        # Get canonical email for deduplication
+                        canonical_id = self.dev_db.get_canonical_identity(email)
+                        canonical_email_match = re.search(r"<([^>]+)>", canonical_id)
+                        if canonical_email_match:
+                            canonical_email = canonical_email_match.group(1)
+                        else:
+                            canonical_email = email
+
+                        # Add or update reviewer data
+                        if canonical_email not in reviewer_data:
+                            reviewer_data[canonical_email] = {
+                                'name': name,
+                                'patches': set()
+                            }
+                        # If we see a longer/better name, use it
+                        elif len(name) > len(reviewer_data[canonical_email]['name']):
+                            reviewer_data[canonical_email]['name'] = name
+
+                        reviewer_data[canonical_email]['patches'].add(patch_id)
+
+            # Also check patch content for trailers
+            content = patch.get("content", "")
+            tag_pattern = r"(?:Reviewed-by|Acked-by):\s*(.+?)(?:\n|$)"
+            matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
+
+            for value in matches:
+                # Extract both name and email
+                match = re.match(r"^(.+?)\s*<([^>]+)>", value)
+                if match:
+                    name = match.group(1).strip()
+                    email = match.group(2).strip()
+                else:
+                    # Try to extract just email
+                    email_match = re.search(
+                        r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
+                    )
+                    if email_match:
+                        email = email_match.group(1)
+                        name = self._extract_name_from_identity(email)
+                    else:
+                        continue
+
+                # Check if this is an external reviewer
                 reviewer_company = self.dev_db.get_company(email)
-                # Only include external reviewers (different company or no company info)
                 if reviewer_company != author_company or author_company is None:
-                    # Get canonical identity for the reviewer
+                    # Get canonical email for deduplication
                     canonical_id = self.dev_db.get_canonical_identity(email)
-                    # Extract name from canonical identity (prefer name over email)
-                    reviewer_name = self._extract_name_from_identity(canonical_id)
+                    canonical_email_match = re.search(r"<([^>]+)>", canonical_id)
+                    if canonical_email_match:
+                        canonical_email = canonical_email_match.group(1)
+                    else:
+                        canonical_email = email
 
-                    if reviewer_name not in reviewer_patch_count:
-                        reviewer_patch_count[reviewer_name] = set()
-                    reviewer_patch_count[reviewer_name].add(patch_id)
+                    # Add or update reviewer data
+                    if canonical_email not in reviewer_data:
+                        reviewer_data[canonical_email] = {
+                            'name': name,
+                            'patches': set()
+                        }
+                    # If we see a longer/better name, use it
+                    elif len(name) > len(reviewer_data[canonical_email]['name']):
+                        reviewer_data[canonical_email]['name'] = name
+
+                    reviewer_data[canonical_email]['patches'].add(patch_id)
 
         # Categorize reviewers: full (reviewed all patches) vs partial (reviewed some)
         reviewers_full = []
         reviewers_partial = []
 
-        for reviewer_name, patch_ids in reviewer_patch_count.items():
+        for canonical_email, data in reviewer_data.items():
+            reviewer_name = data['name']
+            patch_ids = data['patches']
             if len(patch_ids) == total_patches:
                 reviewers_full.append(reviewer_name)
             else:

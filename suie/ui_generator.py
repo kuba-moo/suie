@@ -428,32 +428,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 11px;
-            font-weight: 600;
-            background-color: #ddf4ff;
-            color: #0969da;
-            border: 2px solid #54aeff;
+            font-weight: 500;
+            background-color: #f0f0f0;
+            color: #606060;
+            border: 1px solid #b0b0b0;
         }
 
         [data-theme="dark"] .reviewer-badge-original {
-            background-color: #1a2d3d;
-            color: #58a6ff;
-            border-color: #58a6ff;
+            background-color: #2a2a2a;
+            color: #a0a0a0;
+            border-color: #505050;
         }
 
         .reviewer-badge-comment {
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 11px;
-            font-weight: 500;
-            background-color: #fff8e6;
-            color: #7a6500;
-            border: 1px dashed #d4a72c;
+            font-weight: 600;
+            background-color: #ddf4ff;
+            color: #0969da;
+            border: 2px solid #54aeff;
         }
 
         [data-theme="dark"] .reviewer-badge-comment {
-            background-color: #2a2410;
-            color: #d4a72c;
-            border-color: #d4a72c;
+            background-color: #1a2d3d;
+            color: #58a6ff;
+            border-color: #58a6ff;
         }
 
         .reviewer-badge-full {
