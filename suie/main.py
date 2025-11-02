@@ -10,9 +10,9 @@ from typing import Dict, List
 import yaml
 
 from .patchwork_client import PatchworkClient
-from .state import StateManager
 from .poller import PatchworkPoller
 from .scoring import DeveloperDatabase, ScoringEngine, SeriesScore
+from .state import StateManager
 from .ui_generator import UIGenerator
 
 
@@ -36,9 +36,9 @@ class SuieApp:
         logger.info("Initializing Suie...")
 
         self.client = PatchworkClient(
-            base_url=self.config['patchwork']['url'],
-            user_agent=self.config['patchwork']['user_agent'],
-            requests_log_path=self.config['logging'].get('requests_log')
+            base_url=self.config["patchwork"]["url"],
+            user_agent=self.config["patchwork"]["user_agent"],
+            requests_log_path=self.config["logging"].get("requests_log"),
         )
 
         self.state = StateManager()
@@ -46,24 +46,24 @@ class SuieApp:
         self.poller = PatchworkPoller(
             client=self.client,
             state=self.state,
-            project=self.config['patchwork']['project']
+            project=self.config["patchwork"]["project"],
         )
 
         self.dev_db = DeveloperDatabase(
-            db_path=self.config['database'].get('mailmap_path'),
-            stats_path=self.config['database'].get('stats_path')
+            db_path=self.config["database"].get("mailmap_path"),
+            stats_path=self.config["database"].get("stats_path"),
         )
 
         self.scoring_engine = ScoringEngine(
-            module_path=self.config['sorting']['module_path'],
-            function_name=self.config['sorting']['function_name'],
-            dev_db=self.dev_db
+            module_path=self.config["sorting"]["module_path"],
+            function_name=self.config["sorting"]["function_name"],
+            dev_db=self.dev_db,
         )
 
         self.ui_generator = UIGenerator(
-            output_path=self.config['ui']['output_path'],
-            hide_inactive_default=self.config['ui'].get('hide_inactive_default', True),
-            expected_checks=self.config['ui'].get('expected_checks', [])
+            output_path=self.config["ui"]["output_path"],
+            hide_inactive_default=self.config["ui"].get("hide_inactive_default", True),
+            expected_checks=self.config["ui"].get("expected_checks", []),
         )
 
         logger.info("Suie initialized successfully")
@@ -71,7 +71,7 @@ class SuieApp:
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             logger.info("Loaded configuration from %s", config_path)
             return config
@@ -81,16 +81,16 @@ class SuieApp:
 
     def _setup_logging(self):
         """Setup logging based on configuration"""
-        log_level = self.config['logging'].get('level', 'INFO')
+        log_level = self.config["logging"].get("level", "INFO")
         logging.basicConfig(
             level=getattr(logging, log_level),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
 
     def initialize(self):
         """Initialize state by fetching recent series"""
-        lookback_days = self.config['state'].get('lookback_days', 7)
+        lookback_days = self.config["state"].get("lookback_days", 7)
         logger.info("Initializing state (lookback: %d days)", lookback_days)
 
         self.poller.initialize_state(lookback_days=lookback_days)
@@ -125,7 +125,7 @@ class SuieApp:
         """Regenerate the UI with current state"""
         logger.info("Regenerating UI...")
 
-        lookback_days = self.config['state'].get('lookback_days', 7)
+        lookback_days = self.config["state"].get("lookback_days", 7)
         active_series = self.state.get_active_series(lookback_days)
 
         logger.info("Processing %d active series", len(active_series))
@@ -140,12 +140,12 @@ class SuieApp:
             scored_series.append(series_data)
 
             # Collect delegates
-            for patch_data in series_data['patches']:
-                if patch_data['delegate']:
-                    delegates.add(patch_data['delegate'])
+            for patch_data in series_data["patches"]:
+                if patch_data["delegate"]:
+                    delegates.add(patch_data["delegate"])
 
         # Sort by score (lowest first = highest priority)
-        scored_series.sort(key=lambda s: s['score'])
+        scored_series.sort(key=lambda s: s["score"])
 
         # Generate UI
         self.ui_generator.generate(scored_series, sorted(delegates))
@@ -154,7 +154,7 @@ class SuieApp:
 
     def _score_series(self, series: Dict) -> SeriesScore:
         """Score a series"""
-        series_id = series['id']
+        series_id = series["id"]
         patches = self.state.get_series_patches(series_id)
 
         # Build checks and comments maps
@@ -162,7 +162,7 @@ class SuieApp:
         comments_map = {}
 
         for patch in patches:
-            patch_id = patch['id']
+            patch_id = patch["id"]
             checks_map[patch_id] = self.state.get_patch_checks(patch_id)
             comments_map[patch_id] = self.state.get_patch_comments(patch_id)
 
@@ -170,13 +170,18 @@ class SuieApp:
         cover_letter = self.state.get_cover_letter(series_id)
         cover_comments = []
         if cover_letter:
-            cover_comments = self.state.get_cover_comments(cover_letter['id'])
+            cover_comments = self.state.get_cover_comments(cover_letter["id"])
 
         # Score the series
-        expected_checks = self.config['ui'].get('expected_checks', [])
+        expected_checks = self.config["ui"].get("expected_checks", [])
         return self.scoring_engine.score_series(
-            series, patches, checks_map, comments_map,
-            cover_letter, cover_comments, expected_checks
+            series,
+            patches,
+            checks_map,
+            comments_map,
+            cover_letter,
+            cover_comments,
+            expected_checks,
         )
 
     @staticmethod
@@ -197,8 +202,8 @@ class SuieApp:
         seen = set()  # Deduplicate reviewers
 
         # Check headers
-        headers = patch.get('headers', {})
-        tag_headers = ['Reviewed-by', 'Acked-by', 'Tested-by']
+        headers = patch.get("headers", {})
+        tag_headers = ["Reviewed-by", "Acked-by", "Tested-by"]
 
         for tag_type in tag_headers:
             values = headers.get(tag_type, [])
@@ -208,7 +213,7 @@ class SuieApp:
             for value in values:
                 # Extract name from "Name <email>" format
                 # Try to get name before <email>
-                match = re.match(r'^([^<]+)<', value)
+                match = re.match(r"^([^<]+)<", value)
                 if match:
                     name = match.group(1).strip()
                     if name and name not in seen:
@@ -216,7 +221,7 @@ class SuieApp:
                         seen.add(name)
                 else:
                     # Try to extract just email and use local part
-                    email_match = re.search(r'([a-zA-Z0-9._%+-]+)@', value)
+                    email_match = re.search(r"([a-zA-Z0-9._%+-]+)@", value)
                     if email_match:
                         name = email_match.group(1)
                         if name and name not in seen:
@@ -224,8 +229,8 @@ class SuieApp:
                             seen.add(name)
 
         # Also check patch content for trailers
-        content = patch.get('content', '')
-        tag_pattern = r'(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<|$)'
+        content = patch.get("content", "")
+        tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<|$)"
         matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
         for name in matches:
@@ -233,6 +238,64 @@ class SuieApp:
             if name and name not in seen:
                 reviewers.append(name)
                 seen.add(name)
+
+        return reviewers
+
+    @staticmethod
+    def _extract_reviewer_emails(patch: Dict) -> List[str]:
+        """
+        Extract reviewer email addresses from a patch.
+        Looks for Reviewed-by and Acked-by tags (treating them the same).
+
+        Args:
+            patch: Patch data
+
+        Returns:
+            List of reviewer email addresses
+        """
+        import re
+
+        reviewers = []
+        seen = set()  # Deduplicate reviewers
+
+        # Check headers - only Reviewed-by and Acked-by (per requirements)
+        headers = patch.get("headers", {})
+        tag_headers = ["Reviewed-by", "Acked-by"]
+
+        for tag_type in tag_headers:
+            values = headers.get(tag_type, [])
+            if not isinstance(values, list):
+                values = [values]
+
+            for value in values:
+                # Extract email from "Name <email>" format
+                match = re.search(r"<([^>]+)>", value)
+                if match:
+                    email = match.group(1).strip()
+                    if email and email not in seen:
+                        reviewers.append(email)
+                        seen.add(email)
+                else:
+                    # Try to extract just email
+                    email_match = re.search(
+                        r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
+                    )
+                    if email_match:
+                        email = email_match.group(1)
+                        if email and email not in seen:
+                            reviewers.append(email)
+                            seen.add(email)
+
+        # Also check patch content for trailers - only Reviewed-by and Acked-by
+        content = patch.get("content", "")
+        tag_pattern = r"(?:Reviewed-by|Acked-by):\s*(?:[^<\n]+<)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"
+        matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
+
+        for email in matches:
+            email = email.strip()
+            if email and email not in seen:
+                reviewers.append(email)
+                seen.add(email)
 
         return reviewers
 
@@ -249,14 +312,14 @@ class SuieApp:
             ISO 8601 formatted date string with timezone
         """
         if not date_str:
-            return ''
+            return ""
 
         try:
             # Parse the date string - handles various ISO 8601 formats
             # If no timezone info, assume UTC (Patchwork returns UTC times)
-            if date_str.endswith('Z') or '+' in date_str or date_str.endswith('-00:00'):
+            if date_str.endswith("Z") or "+" in date_str or date_str.endswith("-00:00"):
                 # Already has timezone info
-                dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
             else:
                 # No timezone info - assume UTC (Patchwork always returns UTC)
                 dt = datetime.fromisoformat(date_str).replace(tzinfo=None)
@@ -282,7 +345,7 @@ class SuieApp:
         """
         checks_by_context = {}
         for check in checks:
-            context = check.get('context')
+            context = check.get("context")
             if not context:
                 continue
 
@@ -290,8 +353,8 @@ class SuieApp:
             if context not in checks_by_context:
                 checks_by_context[context] = check
             else:
-                existing_id = checks_by_context[context].get('id', 0)
-                new_id = check.get('id', 0)
+                existing_id = checks_by_context[context].get("id", 0)
+                new_id = check.get("id", 0)
                 if new_id > existing_id:
                     checks_by_context[context] = check
 
@@ -299,7 +362,7 @@ class SuieApp:
 
     def _prepare_series_data(self, series: Dict, series_score: SeriesScore) -> Dict:
         """Prepare series data for UI"""
-        expected_checks = self.config['ui'].get('expected_checks', [])
+        expected_checks = self.config["ui"].get("expected_checks", [])
 
         # Aggregate check status across all patches
         # For each check context, track the worst state across all patches
@@ -325,7 +388,7 @@ class SuieApp:
         check_states = {}  # check_context -> worst_state
 
         for context in all_check_contexts:
-            worst_state = 'success'  # Start optimistic
+            worst_state = "success"  # Start optimistic
 
             for patch_score in series_score.patch_scores:
                 patch_id = patch_score.patch_id
@@ -336,18 +399,18 @@ class SuieApp:
 
                 if context not in checks_dict:
                     # Check is missing for this patch - highest priority
-                    worst_state = 'missing'
+                    worst_state = "missing"
                     break  # Can't get worse than missing
                 else:
                     # Check exists, get its state
                     check = checks_dict[context]
-                    state = check.get('state', 'unknown')
+                    state = check.get("state", "unknown")
 
                     # Update to worst state (priority: missing > fail > warning > success)
-                    if state == 'fail':
-                        worst_state = 'fail'
-                    elif state == 'warning' and worst_state not in ['fail']:
-                        worst_state = 'warning'
+                    if state == "fail":
+                        worst_state = "fail"
+                    elif state == "warning" and worst_state not in ["fail"]:
+                        worst_state = "warning"
                     # success doesn't change worst_state unless it's still 'success'
 
             check_states[context] = worst_state
@@ -359,13 +422,13 @@ class SuieApp:
         series_passing_checks = []
 
         for context, state in check_states.items():
-            if state == 'missing':
+            if state == "missing":
                 series_missing_checks.append(context)
-            elif state == 'fail':
+            elif state == "fail":
                 series_failed_checks.append(context)
-            elif state == 'warning':
+            elif state == "warning":
                 series_warning_checks.append(context)
-            elif state == 'success':
+            elif state == "success":
                 series_passing_checks.append(context)
 
         # Prepare patch data
@@ -384,16 +447,18 @@ class SuieApp:
             failed_checks = []
             passing_checks = 0
             for check in checks_dict.values():
-                state = check.get('state')
-                if state in ['fail', 'warning']:
+                state = check.get("state")
+                if state in ["fail", "warning"]:
                     # Store full check data for failed checks (need URL and description)
-                    failed_checks.append({
-                        'context': check.get('context'),
-                        'state': state,
-                        'description': check.get('description', ''),
-                        'target_url': check.get('target_url', '')
-                    })
-                elif state == 'success':
+                    failed_checks.append(
+                        {
+                            "context": check.get("context"),
+                            "state": state,
+                            "description": check.get("description", ""),
+                            "target_url": check.get("target_url", ""),
+                        }
+                    )
+                elif state == "success":
                     passing_checks += 1
 
             present_checks = set(checks_dict.keys())
@@ -401,31 +466,33 @@ class SuieApp:
 
             # Get delegate
             delegate = None
-            delegate_data = patch.get('delegate')
+            delegate_data = patch.get("delegate")
             if delegate_data:
-                delegate = delegate_data.get('username')
+                delegate = delegate_data.get("username")
 
             # Get reviewers
             reviewers = self._extract_reviewer_names(patch)
 
-            patches_data.append({
-                'id': patch_id,
-                'name': patch.get('name', 'Unknown'),
-                'score': patch_score.score,
-                'score_comments': patch_score.comments,
-                'checks_failed': failed_checks,
-                'checks_missing': missing_checks,
-                'checks_passing': passing_checks,
-                'delegate': delegate,
-                'reviewers': reviewers
-            })
+            patches_data.append(
+                {
+                    "id": patch_id,
+                    "name": patch.get("name", "Unknown"),
+                    "score": patch_score.score,
+                    "score_comments": patch_score.comments,
+                    "checks_failed": failed_checks,
+                    "checks_missing": missing_checks,
+                    "checks_passing": passing_checks,
+                    "delegate": delegate,
+                    "reviewers": reviewers,
+                }
+            )
 
         # Get author name
-        submitter = series.get('submitter', {})
-        author_name = submitter.get('name', submitter.get('email', 'Unknown'))
+        submitter = series.get("submitter", {})
+        author_name = submitter.get("name", submitter.get("email", "Unknown"))
 
         # Check if series is inactive
-        is_inactive = self.state.is_series_inactive(series['id'])
+        is_inactive = self.state.is_series_inactive(series["id"])
 
         # Determine series state from patches
         # Collect all unique patch states
@@ -435,56 +502,110 @@ class SuieApp:
             patch_id = patch_score.patch_id
             patch = self.state.patches.get(patch_id)
             if patch:
-                state = patch.get('state', '').lower()
+                state = patch.get("state", "").lower()
                 if state:
                     patch_states.add(state)
-                if not patch.get('archived', False):
+                if not patch.get("archived", False):
                     all_archived = False
 
         # Determine overall series state
         series_state = None
         if all_archived:
-            series_state = 'archived'
-        elif 'rejected' in patch_states:
-            series_state = 'rejected'
-        elif 'accepted' in patch_states:
+            series_state = "archived"
+        elif "rejected" in patch_states:
+            series_state = "rejected"
+        elif "accepted" in patch_states:
             if len(patch_states) == 1:
-                series_state = 'accepted'
+                series_state = "accepted"
             else:
-                series_state = 'accepted (partial)'
-        elif 'superseded' in patch_states:
-            series_state = 'superseded'
-        elif 'deferred' in patch_states:
-            series_state = 'deferred'
-        elif 'not-applicable' in patch_states:
-            series_state = 'not-applicable'
-        elif 'under-review' in patch_states or 'rfc' in patch_states:
-            series_state = 'under-review'
-        elif 'new' in patch_states or 'changes-requested' in patch_states:
-            series_state = 'new'
+                series_state = "accepted (partial)"
+        elif "superseded" in patch_states:
+            series_state = "superseded"
+        elif "deferred" in patch_states:
+            series_state = "deferred"
+        elif "not-applicable" in patch_states:
+            series_state = "not-applicable"
+        elif "under-review" in patch_states or "rfc" in patch_states:
+            series_state = "under-review"
+        elif "new" in patch_states or "changes-requested" in patch_states:
+            series_state = "new"
 
         # Collect unique delegates
-        delegates_in_series = sorted(set(
-            p['delegate'] for p in patches_data
-            if p['delegate']
-        ))
+        delegates_in_series = sorted(
+            set(p["delegate"] for p in patches_data if p["delegate"])
+        )
+
+        # Aggregate external reviewers at series level
+        # Get author's company
+        author_email = submitter.get("email", "")
+        author_company = self.dev_db.get_company(author_email)
+
+        # Track which reviewers reviewed which patches
+        reviewer_patch_count = {}  # reviewer_name -> set of patch_ids
+        total_patches = len(series_score.patch_scores)
+
+        for patch_score in series_score.patch_scores:
+            patch_id = patch_score.patch_id
+            patch = self.state.patches.get(patch_id)
+            if not patch:
+                continue
+
+            # Get reviewer emails for this patch (Reviewed-by and Acked-by only)
+            reviewer_emails = self._extract_reviewer_emails(patch)
+
+            # Filter out reviewers from same company as author
+            for email in reviewer_emails:
+                reviewer_company = self.dev_db.get_company(email)
+                # Only include external reviewers (different company or no company info)
+                if reviewer_company != author_company or author_company is None:
+                    # Get canonical identity for the reviewer
+                    canonical_id = self.dev_db.get_canonical_identity(email)
+                    # Extract name from canonical identity
+                    import re
+
+                    match = re.match(r"^([^<]+)", canonical_id)
+                    if match:
+                        reviewer_name = match.group(1).strip()
+                    else:
+                        # Fallback to email local part
+                        reviewer_name = email.split("@")[0]
+
+                    if reviewer_name not in reviewer_patch_count:
+                        reviewer_patch_count[reviewer_name] = set()
+                    reviewer_patch_count[reviewer_name].add(patch_id)
+
+        # Categorize reviewers: full (reviewed all patches) vs partial (reviewed some)
+        reviewers_full = []
+        reviewers_partial = []
+
+        for reviewer_name, patch_ids in reviewer_patch_count.items():
+            if len(patch_ids) == total_patches:
+                reviewers_full.append(reviewer_name)
+            else:
+                reviewers_partial.append(reviewer_name)
+
+        # Sort reviewer lists
+        reviewers_full.sort()
+        reviewers_partial.sort()
 
         return {
-            'id': series['id'],
-            'title': series.get('name') or 'No title',
-            'author': author_name,
-            'date': self._normalize_date(series.get('date', '')),
-            'score': series_score.score,
-            'is_inactive': is_inactive,
-            'state': series_state,
-            'patches': patches_data,
-            'delegates': delegates_in_series,
-            'checks_summary': {
-                'failed': sorted(series_failed_checks),
-                'warning': sorted(series_warning_checks),
-                'missing': sorted(series_missing_checks),
-                'passing': len(series_passing_checks)
-            }
+            "id": series["id"],
+            "title": series.get("name") or "No title",
+            "author": author_name,
+            "date": self._normalize_date(series.get("date", "")),
+            "score": series_score.score,
+            "is_inactive": is_inactive,
+            "state": series_state,
+            "patches": patches_data,
+            "delegates": delegates_in_series,
+            "reviewers_full": reviewers_full,
+            "reviewers_partial": reviewers_partial,
+            "checks_summary": {
+                "failed": sorted(series_failed_checks),
+                "warning": sorted(series_warning_checks),
+                "missing": sorted(series_missing_checks),
+                "passing": len(series_passing_checks),
+            },
         }
 
     def run_continuous(self, poll_interval: int = 300):
@@ -516,13 +637,26 @@ class SuieApp:
 
 def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(description='Suie - Patchwork patch ranking application')
-    parser.add_argument('--config', '-c', default='config.yaml',
-                       help='Path to configuration file (default: config.yaml)')
-    parser.add_argument('--init-only', action='store_true',
-                       help='Initialize state and exit (do not poll for updates)')
-    parser.add_argument('--poll-interval', type=int, default=300,
-                       help='Polling interval in seconds (default: 300)')
+    parser = argparse.ArgumentParser(
+        description="Suie - Patchwork patch ranking application"
+    )
+    parser.add_argument(
+        "--config",
+        "-c",
+        default="config.yaml",
+        help="Path to configuration file (default: config.yaml)",
+    )
+    parser.add_argument(
+        "--init-only",
+        action="store_true",
+        help="Initialize state and exit (do not poll for updates)",
+    )
+    parser.add_argument(
+        "--poll-interval",
+        type=int,
+        default=300,
+        help="Polling interval in seconds (default: 300)",
+    )
 
     args = parser.parse_args()
 
@@ -540,5 +674,5 @@ def main():
     app.run_continuous(poll_interval=args.poll_interval)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

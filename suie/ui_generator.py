@@ -218,7 +218,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 80px 150px 1fr 100px 80px 100px 120px 200px 30px;
+            grid-template-columns: 80px 150px 1fr 100px 80px 100px 120px 180px 200px 30px;
             gap: 15px;
             align-items: center;
         }
@@ -422,6 +422,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         [data-theme="dark"] .reviewer-badge {
             background-color: #1a2d3d;
             color: #58a6ff;
+        }
+
+        .reviewer-badge-full {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background-color: #dcffe4;
+            color: #0e6027;
+            border: 2px solid #34d058;
+        }
+
+        [data-theme="dark"] .reviewer-badge-full {
+            background-color: #1a3d2a;
+            color: #56d364;
+            border-color: #238636;
+        }
+
+        .reviewer-badge-partial {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #fff5e6;
+            color: #e67700;
+            border: 1px solid #e67700;
+        }
+
+        [data-theme="dark"] .reviewer-badge-partial {
+            background-color: #3d2a1a;
+            color: #ff9f40;
+            border-color: #ff9f40;
         }
 
         .expand-icon {
@@ -764,6 +796,31 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 });
             }
             header.appendChild(delegatesEl);
+
+            // External Reviewers
+            const reviewersEl = document.createElement('div');
+            reviewersEl.className = 'series-checks';
+            // Show reviewers who reviewed ALL patches first
+            if (series.reviewers_full && series.reviewers_full.length > 0) {
+                series.reviewers_full.forEach(reviewer => {
+                    const badge = document.createElement('span');
+                    badge.className = 'reviewer-badge-full';
+                    badge.textContent = reviewer;
+                    badge.title = `Reviewed all patches: ${reviewer}`;
+                    reviewersEl.appendChild(badge);
+                });
+            }
+            // Then show reviewers who reviewed SOME patches
+            if (series.reviewers_partial && series.reviewers_partial.length > 0) {
+                series.reviewers_partial.forEach(reviewer => {
+                    const badge = document.createElement('span');
+                    badge.className = 'reviewer-badge-partial';
+                    badge.textContent = reviewer;
+                    badge.title = `Reviewed some patches: ${reviewer}`;
+                    reviewersEl.appendChild(badge);
+                });
+            }
+            header.appendChild(reviewersEl);
 
             // Checks
             const checksEl = document.createElement('div');
