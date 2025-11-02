@@ -185,6 +185,70 @@ class SuieApp:
         )
 
     @staticmethod
+    def _extract_reviewer_names_with_source(patch: Dict, comments: List[Dict]) -> Dict[str, str]:
+        """
+        Extract reviewer names with their source (original or comment).
+        Looks for Reviewed-by, Acked-by, and Tested-by tags.
+
+        Args:
+            patch: Patch data
+            comments: List of comments for the patch
+
+        Returns:
+            Dictionary mapping reviewer name -> source ('original' or 'comment')
+        """
+        import re
+
+        reviewers = {}  # reviewer_name -> source
+
+        # Extract from patch headers and content (original)
+        headers = patch.get("headers", {})
+        tag_headers = ["Reviewed-by", "Acked-by", "Tested-by"]
+
+        for tag_type in tag_headers:
+            values = headers.get(tag_type, [])
+            if not isinstance(values, list):
+                values = [values]
+
+            for value in values:
+                # Extract name from "Name <email>" format
+                match = re.match(r"^([^<]+)<", value)
+                if match:
+                    name = match.group(1).strip()
+                    if name:
+                        # Mark as original if not already seen, or if already seen as comment
+                        reviewers[name] = 'original'
+                else:
+                    # Try to extract just email and use local part
+                    email_match = re.search(r"([a-zA-Z0-9._%+-]+)@", value)
+                    if email_match:
+                        name = email_match.group(1)
+                        if name:
+                            reviewers[name] = 'original'
+
+        # Check patch content for trailers (original)
+        content = patch.get("content", "")
+        tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<|$)"
+        matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
+
+        for name in matches:
+            name = name.strip()
+            if name:
+                reviewers[name] = 'original'
+
+        # Check comments for review tags (added later)
+        for comment in comments:
+            comment_content = comment.get('content', '')
+            matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
+
+            for name in matches:
+                name = name.strip()
+                if name and name not in reviewers:  # Only add if not already marked as original
+                    reviewers[name] = 'comment'
+
+        return reviewers
+
+    @staticmethod
     def _extract_reviewer_names(patch: Dict) -> List[str]:
         """
         Extract reviewer names from a patch.
@@ -259,11 +323,15 @@ class SuieApp:
         """
         import re
 
+        # Clean up the identity first
+        identity = identity.strip()
+
         # Try to extract name from "Name <email>" format
-        match = re.match(r"^([^<]+)<", identity)
+        match = re.match(r"^(.+?)\s*<", identity)
         if match:
             name = match.group(1).strip()
-            if name and not "@" in name:  # Make sure we got a name, not an email
+            # Make sure we got a name, not an email
+            if name and "@" not in name and name:
                 return name
 
         # If identity is just an email or we couldn't extract a name,
@@ -509,8 +577,15 @@ class SuieApp:
             if delegate_data:
                 delegate = delegate_data.get("username")
 
-            # Get reviewers
-            reviewers = self._extract_reviewer_names(patch)
+            # Get reviewers with source information
+            comments = self.state.get_patch_comments(patch_id)
+            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments)
+
+            # Convert to list of dicts for UI
+            reviewers = [
+                {"name": name, "source": source}
+                for name, source in reviewers_with_source.items()
+            ]
 
             patches_data.append(
                 {

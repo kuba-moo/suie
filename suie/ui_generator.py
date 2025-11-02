@@ -424,20 +424,52 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #58a6ff;
         }
 
+        .reviewer-badge-original {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            background-color: #ddf4ff;
+            color: #0969da;
+            border: 2px solid #54aeff;
+        }
+
+        [data-theme="dark"] .reviewer-badge-original {
+            background-color: #1a2d3d;
+            color: #58a6ff;
+            border-color: #58a6ff;
+        }
+
+        .reviewer-badge-comment {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #fff8e6;
+            color: #7a6500;
+            border: 1px dashed #d4a72c;
+        }
+
+        [data-theme="dark"] .reviewer-badge-comment {
+            background-color: #2a2410;
+            color: #d4a72c;
+            border-color: #d4a72c;
+        }
+
         .reviewer-badge-full {
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 11px;
             font-weight: 600;
-            background-color: #dcffe4;
-            color: #0e6027;
-            border: 2px solid #34d058;
+            background-color: #e6f7eb;
+            color: #1b6635;
+            border: 2px solid #9cd4a8;
         }
 
         [data-theme="dark"] .reviewer-badge-full {
-            background-color: #1a3d2a;
-            color: #56d364;
-            border-color: #238636;
+            background-color: #1c3426;
+            color: #6bdb86;
+            border-color: #3a7a4d;
         }
 
         .reviewer-badge-partial {
@@ -445,15 +477,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 12px;
             font-size: 11px;
             font-weight: 500;
-            background-color: #fff5e6;
-            color: #e67700;
-            border: 1px solid #e67700;
+            background-color: #f0f0f0;
+            color: #606060;
+            border: 1px solid #b0b0b0;
         }
 
         [data-theme="dark"] .reviewer-badge-partial {
-            background-color: #3d2a1a;
-            color: #ff9f40;
-            border-color: #ff9f40;
+            background-color: #2a2a2a;
+            color: #a0a0a0;
+            border-color: #505050;
         }
 
         .expand-icon {
@@ -980,10 +1012,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 reviewersEl.className = 'series-checks';
                 if (patch.reviewers && patch.reviewers.length > 0) {
                     patch.reviewers.forEach(reviewer => {
+                        // Handle both old string format and new object format
+                        const isObject = typeof reviewer === 'object';
+                        const name = isObject ? reviewer.name : reviewer;
+                        const source = isObject ? reviewer.source : 'original';
+
                         const badge = document.createElement('span');
-                        badge.className = 'reviewer-badge';
-                        badge.textContent = reviewer;
-                        badge.title = `Reviewer: ${reviewer}`;
+                        // Apply different CSS class based on source
+                        if (source === 'original') {
+                            badge.className = 'reviewer-badge-original';
+                            badge.title = `${name} (reviewed in original patch)`;
+                        } else {
+                            badge.className = 'reviewer-badge-comment';
+                            badge.title = `${name} (reviewed in comments)`;
+                        }
+                        badge.textContent = name;
                         reviewersEl.appendChild(badge);
                     });
                 }
