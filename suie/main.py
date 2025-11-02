@@ -262,14 +262,17 @@ class SuieApp:
 
         # Categorize checks by their series-level status
         series_failed_checks = []
+        series_warning_checks = []
         series_missing_checks = []
         series_passing_checks = []
 
         for context, state in check_states.items():
             if state == 'missing':
                 series_missing_checks.append(context)
-            elif state in ['fail', 'warning']:
+            elif state == 'fail':
                 series_failed_checks.append(context)
+            elif state == 'warning':
+                series_warning_checks.append(context)
             elif state == 'success':
                 series_passing_checks.append(context)
 
@@ -345,6 +348,7 @@ class SuieApp:
             'delegates': delegates_in_series,
             'checks_summary': {
                 'failed': sorted(series_failed_checks),
+                'warning': sorted(series_warning_checks),
                 'missing': sorted(series_missing_checks),
                 'passing': len(series_passing_checks)
             }

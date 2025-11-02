@@ -264,14 +264,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #0e6027;
         }
 
+        [data-theme="dark"] .check-success {
+            background-color: #1a3d2a;
+            color: #56d364;
+        }
+
         .check-fail {
             background-color: #ffeef0;
             color: #d73a49;
         }
 
+        [data-theme="dark"] .check-fail {
+            background-color: #3d1319;
+            color: #ff7b72;
+        }
+
         .check-warning {
-            background-color: #fffbdd;
-            color: #735c0f;
+            background-color: #fff5e6;
+            color: #e67700;
+        }
+
+        [data-theme="dark"] .check-warning {
+            background-color: #3d2a1a;
+            color: #ff9f40;
         }
 
         .check-missing {
@@ -279,10 +294,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #0366d6;
         }
 
+        [data-theme="dark"] .check-missing {
+            background-color: #1a2d3d;
+            color: #58a6ff;
+        }
+
         .check-passing {
             background-color: #dcffe4;
             color: #0e6027;
             border: 1px solid #34d058;
+        }
+
+        [data-theme="dark"] .check-passing {
+            background-color: #1a3d2a;
+            color: #56d364;
+            border: 1px solid #238636;
         }
 
         .check-badge.clickable {
@@ -359,10 +385,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #d73a49;
         }
 
+        .failed-check-item.warning {
+            background: #fff5e6;
+            border-left-color: #e67700;
+            color: #e67700;
+        }
+
         [data-theme="dark"] .failed-check-item {
             background: #3d1319;
             color: #ff7b72;
             border-left-color: #ff7b72;
+        }
+
+        [data-theme="dark"] .failed-check-item.warning {
+            background: #3d2a1a;
+            color: #ff9f40;
+            border-left-color: #ff9f40;
         }
 
         .failed-check-item.clickable {
@@ -621,6 +659,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 checksEl.appendChild(badge);
             });
 
+            series.checks_summary.warning.forEach(check => {
+                const badge = document.createElement('span');
+                badge.className = 'check-badge check-warning';
+                badge.textContent = check;
+                badge.title = `Check warning: ${check}`;
+                checksEl.appendChild(badge);
+            });
+
             series.checks_summary.missing.forEach(check => {
                 const badge = document.createElement('span');
                 badge.className = 'check-badge check-missing';
@@ -671,9 +717,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         const context = isObject ? check.context : check;
                         const description = isObject ? check.description : '';
                         const targetUrl = isObject ? check.target_url : '';
+                        const state = isObject ? check.state : 'fail';
 
                         const failedCheckEl = document.createElement('div');
                         failedCheckEl.className = 'failed-check-item';
+                        if (state === 'warning') {
+                            failedCheckEl.classList.add('warning');
+                        }
 
                         const contextSpan = document.createElement('span');
                         contextSpan.className = 'failed-check-context';
