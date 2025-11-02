@@ -342,12 +342,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         // Initialize UI
         document.addEventListener('DOMContentLoaded', () => {
             initializeUI();
+            loadFiltersFromURL();
             renderSeries();
             updateStats();
 
             // Event listeners
             document.getElementById('hide-inactive').addEventListener('change', renderSeries);
-            document.getElementById('delegate-filter').addEventListener('change', renderSeries);
+            document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
         });
 
         function initializeUI() {
@@ -355,6 +356,42 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const genTime = new Date(generatedAt);
             document.getElementById('generated-time').textContent = formatRelativeTime(genTime);
             document.getElementById('total-series').textContent = seriesData.length;
+        }
+
+        function loadFiltersFromURL() {
+            // Read URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const delegate = urlParams.get('delegate');
+
+            // Set delegate filter if present in URL
+            if (delegate) {
+                const delegateSelect = document.getElementById('delegate-filter');
+                // Check if this delegate exists in the options
+                const option = Array.from(delegateSelect.options).find(opt => opt.value === delegate);
+                if (option) {
+                    delegateSelect.value = delegate;
+                }
+            }
+        }
+
+        function updateURL() {
+            // Update URL with current filter state
+            const delegateFilter = document.getElementById('delegate-filter').value;
+            const url = new URL(window.location);
+
+            if (delegateFilter) {
+                url.searchParams.set('delegate', delegateFilter);
+            } else {
+                url.searchParams.delete('delegate');
+            }
+
+            // Update URL without page reload
+            window.history.pushState({}, '', url);
+        }
+
+        function onDelegateChange() {
+            updateURL();
+            renderSeries();
         }
 
         function renderSeries() {

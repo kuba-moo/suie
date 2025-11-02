@@ -85,6 +85,8 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
   - Check results (failed/missing shown individually, passing summarized)
   - Score and scoring comments
 - **Filtering**: Filter by delegate to see only series with patches assigned to specific people
+  - Delegate filter updates the URL (e.g., `?delegate=john`)
+  - Bookmarkable/shareable filtered views
 - **Hide Inactive**: Toggle to hide archived or completed series
 
 ## Custom Scoring
