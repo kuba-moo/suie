@@ -18,6 +18,10 @@ def score_patch(context, patch_score):
 
     Args:
         context: ScoringContext with patch, series, checks, comments, etc.
+                 context.check_outcomes: Dict mapping expected check names to outcomes
+                                        (pass/warning/fail/missing)
+                 context.additional_checks: List of checks not in expected_checks config
+
         patch_score: PatchScore object where you can add diagnostic comments
 
     Returns:
@@ -25,19 +29,40 @@ def score_patch(context, patch_score):
     """
     score = 0.0
 
-    # Check 1: Missing or failing checks increase score (lower priority)
-    expected_checks = ['build', 'test', 'checkpatch']
-    missing_checks = context.get_missing_checks(expected_checks)
-    failed_checks = context.get_failed_checks()
+    # Check 1: Process expected checks from configuration
+    # context.check_outcomes contains the outcome for each expected check
+    missing_checks = []
+    failed_checks = []
+    warning_checks = []
+
+    for check_name, outcome in context.check_outcomes.items():
+        if outcome == 'missing':
+            missing_checks.append(check_name)
+            score += 100
+        elif outcome == 'fail':
+            failed_checks.append(check_name)
+            score += 200
+        elif outcome == 'warning':
+            warning_checks.append(check_name)
+            score += 50
 
     if missing_checks:
-        score += len(missing_checks) * 100
         patch_score.add_comment(f"Missing checks: {', '.join(missing_checks)}")
 
     if failed_checks:
-        score += len(failed_checks) * 200
-        contexts = [c.get('context', 'unknown') for c in failed_checks]
-        patch_score.add_comment(f"Failed checks: {', '.join(contexts)}")
+        patch_score.add_comment(f"Failed checks: {', '.join(failed_checks)}")
+
+    if warning_checks:
+        patch_score.add_comment(f"Warning checks: {', '.join(warning_checks)}")
+
+    # Check additional checks (not in expected_checks config)
+    # These are provided as a list of check dictionaries
+    if context.additional_checks:
+        additional_failed = [c['context'] for c in context.additional_checks
+                           if c.get('state') in ['fail', 'warning']]
+        if additional_failed:
+            score += 50  # Penalty for unexpected check failures
+            patch_score.add_comment(f"Additional checks failed: {', '.join(additional_failed)}")
 
     # Check 2: Patches with external reviews have lower score (higher priority)
     external_reviews = context.get_external_review_tags()

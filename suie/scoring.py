@@ -165,7 +165,8 @@ class ScoringContext:
 
     def __init__(self, patch: Dict, series: Dict, all_patches: List[Dict],
                  checks: List[Dict], comments: List[Dict], cover_letter: Optional[Dict],
-                 cover_comments: List[Dict], dev_db: DeveloperDatabase):
+                 cover_comments: List[Dict], dev_db: DeveloperDatabase,
+                 expected_checks: Optional[List[str]] = None):
         """
         Initialize the scoring context
 
@@ -178,6 +179,7 @@ class ScoringContext:
             cover_letter: Cover letter for the series (if any)
             cover_comments: Comments on the cover letter
             dev_db: Developer database
+            expected_checks: List of expected check names from configuration
         """
         self.patch = patch
         self.series = series
@@ -192,8 +194,49 @@ class ScoringContext:
         self.review_tags = []  # List of (tag_type, email) tuples
         self.review_comments_present = False
 
+        # Process checks: separate expected vs additional, and determine outcomes
+        self.expected_checks = expected_checks or []
+        self.check_outcomes: Dict[str, str] = {}  # check_name -> outcome (pass/warning/fail/missing)
+        self.additional_checks: List[Dict] = []  # checks not in expected_checks
+
         # Parse useful information
         self._parse_review_tags()
+        self._process_checks()
+
+    def _process_checks(self):
+        """Process checks to separate expected from additional and determine outcomes"""
+        # Build a map of check context to check data (deduplicated by keeping latest)
+        checks_by_context = {}
+        for check in self.checks:
+            context = check.get('context')
+            if not context:
+                continue
+
+            # Keep the check with the highest ID (most recent)
+            if context not in checks_by_context:
+                checks_by_context[context] = check
+            else:
+                existing_id = checks_by_context[context].get('id', 0)
+                new_id = check.get('id', 0)
+                if new_id > existing_id:
+                    checks_by_context[context] = check
+
+        # Process expected checks - determine their outcomes
+        for check_name in self.expected_checks:
+            if check_name in checks_by_context:
+                check = checks_by_context[check_name]
+                state = check.get('state', 'unknown')
+                # Map state to outcome (success -> pass)
+                outcome = 'pass' if state == 'success' else state
+                self.check_outcomes[check_name] = outcome
+            else:
+                # Expected check is missing
+                self.check_outcomes[check_name] = 'missing'
+
+        # Collect additional checks (not in expected list)
+        for context, check in checks_by_context.items():
+            if context not in self.expected_checks:
+                self.additional_checks.append(check)
 
     def _parse_review_tags(self):
         """Parse review tags from patch content and comments"""
@@ -372,7 +415,7 @@ class ScoringEngine:
 
     def score_patch(self, patch: Dict, series: Dict, all_patches: List[Dict],
                    checks: List[Dict], comments: List[Dict], cover_letter: Optional[Dict],
-                   cover_comments: List[Dict]) -> PatchScore:
+                   cover_comments: List[Dict], expected_checks: Optional[List[str]] = None) -> PatchScore:
         """
         Score a single patch
 
@@ -384,12 +427,13 @@ class ScoringEngine:
             comments: Comments for this patch
             cover_letter: Cover letter (if any)
             cover_comments: Comments on cover letter
+            expected_checks: List of expected check names from configuration
 
         Returns:
             PatchScore object
         """
         context = ScoringContext(patch, series, all_patches, checks, comments,
-                               cover_letter, cover_comments, self.dev_db)
+                               cover_letter, cover_comments, self.dev_db, expected_checks)
 
         # Create a score object that the scoring function can populate
         patch_score = PatchScore(patch_id=patch['id'], score=0.0)
@@ -411,7 +455,7 @@ class ScoringEngine:
 
     def score_series(self, series: Dict, patches: List[Dict], checks_map: Dict[int, List[Dict]],
                     comments_map: Dict[int, List[Dict]], cover_letter: Optional[Dict],
-                    cover_comments: List[Dict]) -> SeriesScore:
+                    cover_comments: List[Dict], expected_checks: Optional[List[str]] = None) -> SeriesScore:
         """
         Score a series (score is the maximum of all patch scores)
 
@@ -422,6 +466,7 @@ class ScoringEngine:
             comments_map: Map of patch_id -> comments
             cover_letter: Cover letter (if any)
             cover_comments: Comments on cover letter
+            expected_checks: List of expected check names from configuration
 
         Returns:
             SeriesScore object
@@ -435,7 +480,7 @@ class ScoringEngine:
             comments = comments_map.get(patch_id, [])
 
             patch_score = self.score_patch(patch, series, patches, checks, comments,
-                                          cover_letter, cover_comments)
+                                          cover_letter, cover_comments, expected_checks)
             series_score.patch_scores.append(patch_score)
 
         # Series score is the maximum (worst) patch score

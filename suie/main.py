@@ -173,9 +173,10 @@ class SuieApp:
             cover_comments = self.state.get_cover_comments(cover_letter['id'])
 
         # Score the series
+        expected_checks = self.config['ui'].get('expected_checks', [])
         return self.scoring_engine.score_series(
             series, patches, checks_map, comments_map,
-            cover_letter, cover_comments
+            cover_letter, cover_comments, expected_checks
         )
 
     @staticmethod

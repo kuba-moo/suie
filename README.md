@@ -109,24 +109,58 @@ Your scoring function receives a `ScoringContext` object with:
 
 - `patch`: The patch being scored
 - `series`: The series containing the patch
-- `checks`: List of checks for this patch
+- `checks`: Raw list of checks for this patch (for advanced use)
 - `comments`: List of comments on this patch
 - `cover_letter`: Series cover letter (if any)
 - `cover_comments`: Comments on the cover letter
 - `dev_db`: Developer database for looking up scores and companies
 
-Helper methods available:
+**Check Information (Structured):**
+
+- `check_outcomes`: Dictionary mapping expected check names to outcomes (`pass`, `warning`, `fail`, `missing`)
+  - Only includes checks from the `expected_checks` configuration
+  - Automatically handles check deduplication (keeps latest result)
+- `additional_checks`: List of check dictionaries for checks not in `expected_checks` config
+  - Useful for discovering new/unexpected checks
+
+**Helper Methods:**
 
 - `context.get_author_email()`
 - `context.get_author_company()`
 - `context.get_author_reviewer_score()`
 - `context.get_external_review_tags()` - Review tags from outside author's company
 - `context.has_external_reviews()`
-- `context.get_check_status(context_name)`
-- `context.get_failed_checks()`
-- `context.get_missing_checks(expected_checks)`
+- `context.get_check_status(context_name)` - (Legacy) Get raw check status
+- `context.get_failed_checks()` - (Legacy) Get raw failed checks
+- `context.get_missing_checks(expected_checks)` - (Legacy) Get missing checks
+
+**Scoring:**
 
 Return a numeric score (lower = higher priority). Add diagnostic comments via `patch_score.add_comment()`.
+
+Example:
+```python
+def score_patch(context, patch_score):
+    score = 0.0
+
+    # Process expected checks from configuration
+    for check_name, outcome in context.check_outcomes.items():
+        if outcome == 'fail':
+            score += 200
+        elif outcome == 'warning':
+            score += 50
+        elif outcome == 'missing':
+            score += 100
+
+    # Check for unexpected check failures
+    if context.additional_checks:
+        additional_failed = [c for c in context.additional_checks
+                            if c.get('state') in ['fail', 'warning']]
+        if additional_failed:
+            score += 50
+
+    return score
+```
 
 ## Request Logging
 
