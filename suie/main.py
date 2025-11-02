@@ -111,6 +111,13 @@ class SuieApp:
 
         state_changed = self.poller.poll_events()
 
+        # Check if new stats file is available
+        stats_reloaded = self.dev_db.check_and_reload_stats()
+
+        if stats_reloaded:
+            logger.info("New stats file loaded, forcing UI regeneration")
+            state_changed = True  # Force regeneration even if no patch changes
+
         if state_changed:
             logger.info("State changed, regenerating UI")
             self.regenerate_ui()

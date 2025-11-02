@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Callable, Tuple
@@ -41,16 +42,20 @@ class DeveloperDatabase:
 
         Args:
             db_path: Path to the JSON file with mailmap and corpmap
-            stats_path: Path to the JSON file with developer statistics
+            stats_path: Path to JSON file or directory containing developer statistics
+                       If directory, will load the newest file
         """
         self.mailmap_list: List[List[str]] = []  # list of [pattern, canonical]
         self.corpmap_list: List[List[str]] = []  # list of [pattern, company]
         self.bots: List[str] = []  # list of bot email addresses
         self.stats: Dict = {}  # developer statistics
+        self.stats_base_path: Optional[str] = None  # directory or file path for stats
+        self.stats_loaded_file: Optional[str] = None  # actual file loaded
 
         if db_path:
             self._load_database(db_path)
         if stats_path:
+            self.stats_base_path = stats_path
             self._load_stats(stats_path)
 
     def _load_database(self, db_path: str):
@@ -90,15 +95,110 @@ class DeveloperDatabase:
         except Exception as e:
             logger.error("Failed to load database from %s: %s", db_path, e)
 
-    def _load_stats(self, stats_path: str):
-        """Load developer statistics from JSON file"""
+    def _get_newest_file_in_directory(self, directory: str) -> Optional[str]:
+        """
+        Get the newest file in a directory based on modification time
+
+        Args:
+            directory: Directory path
+
+        Returns:
+            Path to newest file, or None if directory is empty
+        """
         try:
-            with open(stats_path, 'r', encoding='utf-8') as f:
+            files = []
+            for entry in os.listdir(directory):
+                full_path = os.path.join(directory, entry)
+                if not os.path.isfile(full_path):
+                    continue
+
+                # Try to load as JSON to verify it's a valid JSON file
+                try:
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        json.load(f)
+                    # If load succeeds, add to list
+                    files.append(full_path)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    # Skip files that aren't valid JSON
+                    continue
+
+            if not files:
+                logger.warning("No valid JSON files found in directory %s", directory)
+                return None
+
+            # Sort by modification time, newest first
+            files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+            return files[0]
+
+        except Exception as e:
+            logger.error("Failed to find newest file in %s: %s", directory, e)
+            return None
+
+    def _load_stats(self, stats_path: str):
+        """
+        Load developer statistics from JSON file or directory
+
+        Args:
+            stats_path: Path to JSON file or directory containing JSON files
+        """
+        try:
+            # Check if path is a directory
+            if os.path.isdir(stats_path):
+                actual_file = self._get_newest_file_in_directory(stats_path)
+                if not actual_file:
+                    logger.error("No stats files found in directory %s", stats_path)
+                    return
+                logger.info("Loading stats from newest file in directory: %s",
+                           os.path.basename(actual_file))
+                stats_file = actual_file
+            else:
+                stats_file = stats_path
+
+            # Load the stats file
+            with open(stats_file, 'r', encoding='utf-8') as f:
                 self.stats = json.load(f)
-            logger.info("Loaded statistics for %d individuals",
+
+            self.stats_loaded_file = stats_file
+            logger.info("Loaded statistics from %s for %d individuals",
+                       os.path.basename(stats_file),
                        len(self.stats.get('individual', {})))
         except Exception as e:
             logger.error("Failed to load stats from %s: %s", stats_path, e)
+
+    def check_and_reload_stats(self) -> bool:
+        """
+        Check if a newer stats file is available and reload if so
+
+        Returns:
+            True if stats were reloaded, False otherwise
+        """
+        if not self.stats_base_path:
+            return False
+
+        try:
+            # Only check if base path is a directory
+            if not os.path.isdir(self.stats_base_path):
+                return False
+
+            # Find newest file in directory
+            newest_file = self._get_newest_file_in_directory(self.stats_base_path)
+            if not newest_file:
+                return False
+
+            # Check if it's different from currently loaded file
+            if newest_file == self.stats_loaded_file:
+                return False
+
+            # New file found - reload stats
+            logger.info("New stats file detected: %s (was: %s)",
+                       os.path.basename(newest_file),
+                       os.path.basename(self.stats_loaded_file) if self.stats_loaded_file else "none")
+            self._load_stats(self.stats_base_path)
+            return True
+
+        except Exception as e:
+            logger.error("Failed to check for new stats file: %s", e)
+            return False
 
     def _apply_mapping(self, identity: str, mapping_list: List[List[str]]) -> str:
         """
