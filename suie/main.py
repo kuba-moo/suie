@@ -1112,8 +1112,8 @@ def main():
     parser.add_argument(
         "--poll-interval",
         type=int,
-        default=300,
-        help="Polling interval in seconds (default: 300)",
+        default=None,
+        help="Polling interval in seconds (overrides config file)",
     )
 
     args = parser.parse_args()
@@ -1128,8 +1128,13 @@ def main():
         logger.info("Initialization complete, exiting")
         return
 
+    # Determine poll interval: CLI arg > config file > default (300)
+    poll_interval = args.poll_interval
+    if poll_interval is None:
+        poll_interval = app.config.get("polling", {}).get("interval", 300)
+
     # Run continuous polling
-    app.run_continuous(poll_interval=args.poll_interval)
+    app.run_continuous(poll_interval=poll_interval)
 
 
 if __name__ == "__main__":
