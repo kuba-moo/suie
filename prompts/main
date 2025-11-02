@@ -116,3 +116,5 @@ The Lore link seems to be missing. The UI has too many columns now. Put the link
 You got the coloring of the reviewers at patch level backwards. Make the reviews which were in the patch when posted gray and the new reviews that came in via comments the blue color that was prevously used for pre-existing ones. Once again double check your work on the reviewer names at the series level. Some series are still missing surnames (e.g. series reviewed pertially by John Doe shows John Doe in patches, but only John at the series level).
 
 The Lore links are still missing. They only show up in the patches. Try to load them from cover letter (if the series has one) and the first patch if cover letter doesn't exist.
+
+There's a major problem with the reviewer summarization at the series level. The reviews which came in via comments after the series was posted do not show up there at all.

@@ -668,61 +668,11 @@ class SuieApp:
             # Extract review tags with email addresses from the patch
             # This preserves the full names as they appear in the patch
             import re
-            headers = patch.get("headers", {})
-            tag_headers = ["Reviewed-by", "Acked-by"]
 
-            for tag_type in tag_headers:
-                values = headers.get(tag_type, [])
-                if not isinstance(values, list):
-                    values = [values]
-
-                for value in values:
-                    # Extract both name and email from "Name <email>" format
-                    match = re.match(r"^(.+?)\s*<([^>]+)>", value)
-                    if match:
-                        name = match.group(1).strip()
-                        email = match.group(2).strip()
-                    else:
-                        # Try to extract just email
-                        email_match = re.search(
-                            r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
-                        )
-                        if email_match:
-                            email = email_match.group(1)
-                            name = self._extract_name_from_identity(email)
-                        else:
-                            continue
-
-                    # Check if this is an external reviewer
-                    reviewer_company = self.dev_db.get_company(email)
-                    if reviewer_company != author_company or author_company is None:
-                        # Get canonical email for deduplication
-                        canonical_id = self.dev_db.get_canonical_identity(email)
-                        canonical_email_match = re.search(r"<([^>]+)>", canonical_id)
-                        if canonical_email_match:
-                            canonical_email = canonical_email_match.group(1)
-                        else:
-                            canonical_email = email
-
-                        # Add or update reviewer data
-                        if canonical_email not in reviewer_data:
-                            reviewer_data[canonical_email] = {
-                                'name': name,
-                                'patches': set()
-                            }
-                        # If we see a longer/better name, use it
-                        elif len(name) > len(reviewer_data[canonical_email]['name']):
-                            reviewer_data[canonical_email]['name'] = name
-
-                        reviewer_data[canonical_email]['patches'].add(patch_id)
-
-            # Also check patch content for trailers
-            content = patch.get("content", "")
-            tag_pattern = r"(?:Reviewed-by|Acked-by):\s*(.+?)(?:\n|$)"
-            matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
-
-            for value in matches:
-                # Extract both name and email
+            # Helper function to process review tags
+            def process_review_tag(value):
+                """Extract name and email from a review tag, process it"""
+                # Extract both name and email from "Name <email>" format
                 match = re.match(r"^(.+?)\s*<([^>]+)>", value)
                 if match:
                     name = match.group(1).strip()
@@ -736,8 +686,12 @@ class SuieApp:
                         email = email_match.group(1)
                         name = self._extract_name_from_identity(email)
                     else:
-                        continue
+                        return None, None
 
+                return name, email
+
+            def add_reviewer(name, email):
+                """Add or update reviewer in reviewer_data"""
                 # Check if this is an external reviewer
                 reviewer_company = self.dev_db.get_company(email)
                 if reviewer_company != author_company or author_company is None:
@@ -760,6 +714,41 @@ class SuieApp:
                         reviewer_data[canonical_email]['name'] = name
 
                     reviewer_data[canonical_email]['patches'].add(patch_id)
+
+            # Check patch headers
+            headers = patch.get("headers", {})
+            tag_headers = ["Reviewed-by", "Acked-by"]
+
+            for tag_type in tag_headers:
+                values = headers.get(tag_type, [])
+                if not isinstance(values, list):
+                    values = [values]
+
+                for value in values:
+                    name, email = process_review_tag(value)
+                    if name and email:
+                        add_reviewer(name, email)
+
+            # Check patch content for trailers
+            content = patch.get("content", "")
+            tag_pattern = r"(?:Reviewed-by|Acked-by):\s*(.+?)(?:\n|$)"
+            matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
+
+            for value in matches:
+                name, email = process_review_tag(value)
+                if name and email:
+                    add_reviewer(name, email)
+
+            # IMPORTANT: Also check comments for review tags
+            comments = self.state.get_patch_comments(patch_id)
+            for comment in comments:
+                comment_content = comment.get('content', '')
+                matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
+
+                for value in matches:
+                    name, email = process_review_tag(value)
+                    if name and email:
+                        add_reviewer(name, email)
 
         # Categorize reviewers: full (reviewed all patches) vs partial (reviewed some)
         reviewers_full = []
@@ -784,7 +773,7 @@ class SuieApp:
             cover_letter = self.state.get_cover_letter(series["id"])
             if cover_letter:
                 lore_url = cover_letter.get("list_archive_url")
-            
+
             # If still no URL, try first patch
             if not lore_url and series_score.patch_scores:
                 first_patch_id = series_score.patch_scores[0].patch_id
