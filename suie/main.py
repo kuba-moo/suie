@@ -873,11 +873,15 @@ class SuieApp:
             series_state = "superseded"
         elif "changes-requested" in patch_states:
             series_state = "changes-requested"
+        elif "rfc" in patch_states:
+            series_state = "rfc"
+        elif "awaiting-upstream" in patch_states:
+            series_state = "awaiting-upstream"
         elif "deferred" in patch_states:
             series_state = "deferred"
         elif "not-applicable" in patch_states:
             series_state = "not-applicable"
-        elif "under-review" in patch_states or "rfc" in patch_states:
+        elif "under-review" in patch_states:
             series_state = "under-review"
         elif "new" in patch_states:
             series_state = "new"
