@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 import time
-from typing import Dict
+from typing import Dict, List
 
 import yaml
 
@@ -177,6 +177,34 @@ class SuieApp:
             cover_letter, cover_comments
         )
 
+    @staticmethod
+    def _deduplicate_checks(checks: List[Dict]) -> Dict[str, Dict]:
+        """
+        Deduplicate checks by context, keeping only the latest (highest ID).
+
+        Args:
+            checks: List of check dictionaries
+
+        Returns:
+            Dictionary mapping context -> latest check data
+        """
+        checks_by_context = {}
+        for check in checks:
+            context = check.get('context')
+            if not context:
+                continue
+
+            # Keep the check with the highest ID (most recent)
+            if context not in checks_by_context:
+                checks_by_context[context] = check
+            else:
+                existing_id = checks_by_context[context].get('id', 0)
+                new_id = check.get('id', 0)
+                if new_id > existing_id:
+                    checks_by_context[context] = check
+
+        return checks_by_context
+
     def _prepare_series_data(self, series: Dict, series_score: SeriesScore) -> Dict:
         """Prepare series data for UI"""
         expected_checks = self.config['ui'].get('expected_checks', [])
@@ -196,7 +224,8 @@ class SuieApp:
                 continue
 
             checks = self.state.get_patch_checks(patch_id)
-            checks_dict = {c.get('context'): c for c in checks}
+            # Deduplicate checks by context, keeping only the latest
+            checks_dict = self._deduplicate_checks(checks)
             patch_checks_map[patch_id] = checks_dict
             all_check_contexts.update(checks_dict.keys())
 
@@ -253,11 +282,13 @@ class SuieApp:
                 continue
 
             checks = self.state.get_patch_checks(patch_id)
+            # Deduplicate checks by context, keeping only the latest
+            checks_dict = self._deduplicate_checks(checks)
 
             # Get failed, missing, and passing checks for this patch
             failed_checks = []
             passing_checks = 0
-            for check in checks:
+            for check in checks_dict.values():
                 state = check.get('state')
                 if state in ['fail', 'warning']:
                     # Store full check data for failed checks (need URL and description)
@@ -270,7 +301,7 @@ class SuieApp:
                 elif state == 'success':
                     passing_checks += 1
 
-            present_checks = {c.get('context') for c in checks}
+            present_checks = set(checks_dict.keys())
             missing_checks = [c for c in expected_checks if c not in present_checks]
 
             # Get delegate
