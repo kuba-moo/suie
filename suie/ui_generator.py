@@ -749,20 +749,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const delegateFilter = document.getElementById('delegate-filter').value;
 
             container.innerHTML = '';
-            
+
             // Add header row
             const headerRow = document.createElement('div');
             headerRow.className = 'series-list-header';
-            
+
             const headers = ['ID', 'Author', 'Title', 'Age', 'Score', 'State', 'Reviews', 'Checks', ''];
             headers.forEach(headerText => {
                 const headerCell = document.createElement('div');
                 headerCell.textContent = headerText;
                 headerRow.appendChild(headerCell);
             });
-            
+
             container.appendChild(headerRow);
-            
+
             let visibleCount = 0;
 
             seriesData.forEach(series => {
@@ -865,8 +865,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Score
             const scoreEl = document.createElement('div');
             scoreEl.className = 'series-score';
-            scoreEl.textContent = series.score.toFixed(0);
-            scoreEl.title = `Score: ${series.score.toFixed(2)}`;
+            scoreEl.textContent = formatScoreAsTime(series.score);
+            scoreEl.title = `Score: ${series.score.toFixed(2)} hours`;
             header.appendChild(scoreEl);
 
             // State + Delegates (combined column with state on top, delegates below)
@@ -1150,6 +1150,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             } else {
                 return 'now';
             }
+        }
+
+        function formatScoreAsTime(score) {
+            // Treat score as hours
+            // Positive score: e.g., 25 hours = "1d 1h"
+            // Negative score: e.g., -7 hours = "-7h"
+
+            const isNegative = score < 0;
+            const absScore = Math.abs(score);
+            const hours = Math.floor(absScore);
+            const days = Math.floor(hours / 24);
+            const remainingHours = hours % 24;
+
+            let result = '';
+            if (isNegative) {
+                result = '-';
+            }
+
+            if (days > 0) {
+                result += `${days}d`;
+                if (remainingHours > 0) {
+                    result += ` ${remainingHours}h`;
+                }
+            } else if (hours > 0) {
+                result += `${hours}h`;
+            } else {
+                result += '0h';
+            }
+
+            return result;
         }
 
         function updateStats() {

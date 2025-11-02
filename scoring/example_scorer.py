@@ -38,13 +38,13 @@ def score_patch(context, patch_score):
     for check_name, outcome in context.check_outcomes.items():
         if outcome == 'missing':
             missing_checks.append(check_name)
-            score += 100
+            score += 2  # 100 / 50
         elif outcome == 'fail':
             failed_checks.append(check_name)
-            score += 200
+            score += 4  # 200 / 50
         elif outcome == 'warning':
             warning_checks.append(check_name)
-            score += 50
+            score += 1  # 50 / 50
 
     if missing_checks:
         patch_score.add_comment(f"Missing checks: {', '.join(missing_checks)}")
@@ -61,7 +61,7 @@ def score_patch(context, patch_score):
         additional_failed = [c['context'] for c in context.additional_checks
                            if c.get('state') in ['fail', 'warning']]
         if additional_failed:
-            score += 50  # Penalty for unexpected check failures
+            score += 1  # 50 / 50 - Penalty for unexpected check failures
             patch_score.add_comment(f"Additional checks failed: {', '.join(additional_failed)}")
 
     # Check 2: Patches with external reviews have lower score (higher priority)
@@ -69,19 +69,19 @@ def score_patch(context, patch_score):
 
     if len(external_reviews) >= 2:
         # Has multiple reviews from different people/companies
-        score -= 300
+        score -= 6  # 300 / 50
         patch_score.add_comment(f"Has {len(external_reviews)} external reviews - ready")
     elif len(external_reviews) == 1:
         # Has one review
-        score -= 150
+        score -= 3  # 150 / 50
         patch_score.add_comment("Has 1 external review")
     elif context.review_comments_present:
         # Has review comments but no tags yet
-        score -= 50
+        score -= 1  # 50 / 50
         patch_score.add_comment("Has review feedback")
     else:
         # No reviews yet
-        score += 100
+        score += 2  # 100 / 50
         patch_score.add_comment("No reviews yet")
 
     # Check 3: Author reputation affects score
@@ -89,15 +89,15 @@ def score_patch(context, patch_score):
 
     if author_score > 3000:
         # Very experienced author
-        score -= 100
+        score -= 2  # 100 / 50
         patch_score.add_comment("Experienced author")
     elif author_score > 1000:
         # Experienced author
-        score -= 50
+        score -= 1  # 50 / 50
         patch_score.add_comment("Regular author")
     elif author_score < 0:
         # New or less experienced author - may need more review
-        score += 50
+        score += 1  # 50 / 50
         patch_score.add_comment("New author - needs attention")
 
     # Check 4: Company backing
@@ -105,7 +105,7 @@ def score_patch(context, patch_score):
 
     if company_score > 5000:
         # Strong company backing
-        score -= 50
+        score -= 1  # 50 / 50
         patch_score.add_comment("Strong company backing")
 
     # Check 5: Patch state
@@ -113,22 +113,22 @@ def score_patch(context, patch_score):
 
     if state in ['accepted', 'rejected']:
         # Terminal states - push to bottom
-        score += 10000
+        score += 200  # 10000 / 50
         patch_score.add_comment(f"Terminal state: {state}")
     elif state == 'superseded':
-        score += 5000
+        score += 100  # 5000 / 50
         patch_score.add_comment("Superseded by newer version")
     elif state == 'new':
         # New patches might need attention
         pass
     elif state == 'under-review':
         # Being actively reviewed
-        score -= 25
+        score -= 0.5  # 25 / 50
         patch_score.add_comment("Under active review")
 
     # Check 6: Archived patches
     if context.patch.get('archived', False):
-        score += 10000
+        score += 200  # 10000 / 50
         patch_score.add_comment("Archived")
 
     return score

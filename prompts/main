@@ -120,3 +120,5 @@ The Lore links are still missing. They only show up in the patches. Try to load 
 There's a major problem with the reviewer summarization at the series level. The reviews which came in via comments after the series was posted do not show up there at all.
 
 Add some column names, first column with the links and IDs can be called ID. Second Author, third Title, fourth age, fifth score, sixth state, sevent reviews, eight checks. While at it please reformat the age column a little bit, remove the "ago" and make sure that we display hours even for series which are older than a day.
+
+Refactor the displaying of the scores. Treat the score as hours, so a score of 25 should be shown as "1d 1h" a score of -7 as "-7h". Adjust the scoring example dividing the values of scores by 50 so that we don't end up with huge values.
