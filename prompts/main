@@ -128,3 +128,5 @@ When computing the age of a series exclude time during the weekend (Saturday and
 We're missing review comment presence in the UI. Display review comments in the same column as the review tags, but the names of people who commented without providing a review tag for the patch should be yellow. When summaring reviewers at the series level the reviewer should be yellow if they commented without providing a review tag on at least one of the patches.
 
 Add a warning to the logs if author of the patches is not found in ml-stats. Add info level message if reviewer / commenter is not found.
+
+Add a chip under the author (separate line but the same column) displaying the company associate of the author.

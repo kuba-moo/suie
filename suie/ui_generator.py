@@ -519,6 +519,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-color: #8a7000;
         }
 
+        .company-badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 500;
+            background-color: #e8f4f8;
+            color: #0969da;
+            border: 1px solid #b8dae8;
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        [data-theme="dark"] .company-badge {
+            background-color: #1a2d3d;
+            color: #58a6ff;
+            border-color: #2d4a5e;
+        }
+
         .expand-icon {
             transition: transform 0.2s;
             font-size: 18px;
@@ -858,11 +879,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             idLinksEl.appendChild(linksEl);
             header.appendChild(idLinksEl);
 
-            // Author
+            // Author (with company badge below)
             const authorEl = document.createElement('div');
             authorEl.className = 'series-author';
-            authorEl.textContent = series.author;
-            authorEl.title = series.author;
+            authorEl.style.display = 'flex';
+            authorEl.style.flexDirection = 'column';
+            authorEl.style.gap = '4px';
+            
+            const authorNameEl = document.createElement('div');
+            authorNameEl.textContent = series.author;
+            authorNameEl.title = series.author;
+            authorNameEl.style.overflow = 'hidden';
+            authorNameEl.style.textOverflow = 'ellipsis';
+            authorNameEl.style.whiteSpace = 'nowrap';
+            authorEl.appendChild(authorNameEl);
+            
+            if (series.author_company) {
+                const companyBadge = document.createElement('span');
+                companyBadge.className = 'company-badge';
+                companyBadge.textContent = series.author_company;
+                companyBadge.title = `Company: ${series.author_company}`;
+                authorEl.appendChild(companyBadge);
+            }
+            
             header.appendChild(authorEl);
 
             // Title

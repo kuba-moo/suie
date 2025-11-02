@@ -731,13 +731,16 @@ class SuieApp:
                 }
             )
 
-        # Get author name and check if they're in stats
+        # Get author name and company
         submitter = series.get("submitter", {})
         author_name = submitter.get("name", submitter.get("email", "Unknown"))
         author_email = submitter.get("email", "")
+        author_company = None
         
-        # Warn if author is not found in ml-stats
         if author_email:
+            author_company = self.dev_db.get_company(author_email)
+            
+            # Warn if author is not found in ml-stats
             canonical_id = self.dev_db.get_canonical_identity(author_email)
             individual_stats = self.dev_db.stats.get('individual', {})
             if canonical_id not in individual_stats:
@@ -945,6 +948,7 @@ class SuieApp:
             "id": series["id"],
             "title": series.get("name") or "No title",
             "author": author_name,
+            "author_company": author_company,
             "date": date_normalized,
             "age_weekday_hours": age_breakdown["weekday_hours"],
             "age_weekend_hours": age_breakdown["weekend_hours"],
