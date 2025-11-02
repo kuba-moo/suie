@@ -218,7 +218,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 80px 150px 1fr 100px 80px 100px 120px 180px 200px 30px;
+            grid-template-columns: 80px 120px 150px 1fr 100px 80px 100px 120px 180px 200px 30px;
             gap: 15px;
             align-items: center;
         }
@@ -738,6 +738,42 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             idEl.className = 'series-id';
             idEl.textContent = `#${series.id}`;
             header.appendChild(idEl);
+
+            // Links (Lore and Patchwork)
+            const linksEl = document.createElement('div');
+            linksEl.style.display = 'flex';
+            linksEl.style.gap = '8px';
+            linksEl.style.fontSize = '12px';
+
+            if (series.lore_url) {
+                const loreLink = document.createElement('a');
+                loreLink.href = series.lore_url;
+                loreLink.textContent = 'Lore';
+                loreLink.target = '_blank';
+                loreLink.style.color = 'var(--text-link)';
+                loreLink.style.textDecoration = 'none';
+                loreLink.style.fontWeight = '500';
+                loreLink.addEventListener('click', (e) => e.stopPropagation());
+                loreLink.addEventListener('mouseover', () => loreLink.style.textDecoration = 'underline');
+                loreLink.addEventListener('mouseout', () => loreLink.style.textDecoration = 'none');
+                linksEl.appendChild(loreLink);
+            }
+
+            if (series.patchwork_url) {
+                const pwLink = document.createElement('a');
+                pwLink.href = series.patchwork_url;
+                pwLink.textContent = 'Patchwork';
+                pwLink.target = '_blank';
+                pwLink.style.color = 'var(--text-link)';
+                pwLink.style.textDecoration = 'none';
+                pwLink.style.fontWeight = '500';
+                pwLink.addEventListener('click', (e) => e.stopPropagation());
+                pwLink.addEventListener('mouseover', () => pwLink.style.textDecoration = 'underline');
+                pwLink.addEventListener('mouseout', () => pwLink.style.textDecoration = 'none');
+                linksEl.appendChild(pwLink);
+            }
+
+            header.appendChild(linksEl);
 
             // Author
             const authorEl = document.createElement('div');

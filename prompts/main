@@ -106,3 +106,5 @@ Follow up prompts
 Make sure that output/patchwork_requests.json is not overriden every time the program is restarted. We should append to it. When the file gets to 10,000 entries we should dump the contents into a new file with a date appended to the name, and reset the entries to empty.
 
 We want names of the reviewers to be listed in the UI not their email addresses.
+
+Add at series levels two links - to the list_archive_url of the series and to the web_url of the series. The former should be called Lore, the latter Patchwork.

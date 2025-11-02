@@ -632,6 +632,8 @@ class SuieApp:
             "delegates": delegates_in_series,
             "reviewers_full": reviewers_full,
             "reviewers_partial": reviewers_partial,
+            "lore_url": series.get("list_archive_url"),
+            "patchwork_url": series.get("web_url"),
             "checks_summary": {
                 "failed": sorted(series_failed_checks),
                 "warning": sorted(series_warning_checks),
