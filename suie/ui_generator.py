@@ -144,6 +144,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         h1 {
             font-size: 24px;
             margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h1 img {
+            height: 1.2em;
+            width: auto;
+            vertical-align: middle;
         }
 
         .controls {
@@ -668,7 +677,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
     <div class="container">
         <header>
-            <h1>Suie - Patch Review Queue</h1>
+            <h1><img src="suie.png" alt="Suie">Suie - Patch Review Queue</h1>
             <div class="stats">
                 Generated at: <span id="generated-time"></span> |
                 Total series: <span id="total-series"></span> |
