@@ -80,7 +80,11 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
   - Automatically detects system preference on first load
   - Preference saved in browser's localStorage
   - Smooth transition animations
-- **Series View**: Shows series ID, author, title, age, assigned delegates, and check status
+- **Series View**: Shows series ID, author, title, age, score, state, assigned delegates, and check status
+  - **Score**: Numeric priority score (lower = higher priority)
+  - **State**: Series state badge (e.g., new, accepted, rejected, superseded)
+    - Determined from patch states: accepted (green), rejected (red), under-review (orange), new (blue), archived/superseded (gray)
+    - Shows "accepted (partial)" if some patches are accepted and others are not
   - Check status aggregated across all patches (per check type):
     - **Missing**: If any patch is missing the check
     - **Failed/Warning**: If any patch failed/warned (and none are missing)

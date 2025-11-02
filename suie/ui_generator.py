@@ -218,7 +218,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 80px 150px 1fr 100px 80px 120px 200px 30px;
+            grid-template-columns: 80px 150px 1fr 100px 80px 100px 120px 200px 30px;
             gap: 15px;
             align-items: center;
         }
@@ -250,6 +250,74 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: var(--text-secondary);
             font-size: 13px;
             font-weight: 500;
+        }
+
+        .series-state {
+            font-size: 11px;
+        }
+
+        .state-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .state-new {
+            background-color: #ddf4ff;
+            color: #0969da;
+        }
+
+        [data-theme="dark"] .state-new {
+            background-color: #1a2d3d;
+            color: #58a6ff;
+        }
+
+        .state-under-review {
+            background-color: #fff5e6;
+            color: #e67700;
+        }
+
+        [data-theme="dark"] .state-under-review {
+            background-color: #3d2a1a;
+            color: #ff9f40;
+        }
+
+        .state-accepted {
+            background-color: #dcffe4;
+            color: #0e6027;
+        }
+
+        [data-theme="dark"] .state-accepted {
+            background-color: #1a3d2a;
+            color: #56d364;
+        }
+
+        .state-rejected {
+            background-color: #ffeef0;
+            color: #d73a49;
+        }
+
+        [data-theme="dark"] .state-rejected {
+            background-color: #3d1319;
+            color: #ff7b72;
+        }
+
+        .state-superseded,
+        .state-deferred,
+        .state-not-applicable,
+        .state-archived {
+            background-color: #f6f8fa;
+            color: #586069;
+        }
+
+        [data-theme="dark"] .state-superseded,
+        [data-theme="dark"] .state-deferred,
+        [data-theme="dark"] .state-not-applicable,
+        [data-theme="dark"] .state-archived {
+            background-color: #30363d;
+            color: #8b949e;
         }
 
         .series-checks {
@@ -472,7 +540,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         @media (max-width: 1000px) {
             .series-header {
-                grid-template-columns: 60px 120px 1fr 80px 70px 100px 130px 30px;
+                grid-template-columns: 60px 120px 1fr 80px 70px 90px 100px 130px 30px;
                 gap: 10px;
                 font-size: 13px;
             }
@@ -665,6 +733,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             scoreEl.textContent = series.score.toFixed(0);
             scoreEl.title = `Score: ${series.score.toFixed(2)}`;
             header.appendChild(scoreEl);
+
+            // State
+            const stateEl = document.createElement('div');
+            stateEl.className = 'series-state';
+            if (series.state) {
+                const stateBadge = document.createElement('span');
+                stateBadge.className = 'state-badge';
+
+                // Add state-specific class
+                const stateClass = 'state-' + series.state.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                stateBadge.classList.add(stateClass);
+
+                stateBadge.textContent = series.state;
+                stateBadge.title = `State: ${series.state}`;
+                stateEl.appendChild(stateBadge);
+            }
+            header.appendChild(stateEl);
 
             // Delegates
             const delegatesEl = document.createElement('div');

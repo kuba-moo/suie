@@ -427,6 +427,42 @@ class SuieApp:
         # Check if series is inactive
         is_inactive = self.state.is_series_inactive(series['id'])
 
+        # Determine series state from patches
+        # Collect all unique patch states
+        patch_states = set()
+        all_archived = True
+        for patch_score in series_score.patch_scores:
+            patch_id = patch_score.patch_id
+            patch = self.state.patches.get(patch_id)
+            if patch:
+                state = patch.get('state', '').lower()
+                if state:
+                    patch_states.add(state)
+                if not patch.get('archived', False):
+                    all_archived = False
+
+        # Determine overall series state
+        series_state = None
+        if all_archived:
+            series_state = 'archived'
+        elif 'rejected' in patch_states:
+            series_state = 'rejected'
+        elif 'accepted' in patch_states:
+            if len(patch_states) == 1:
+                series_state = 'accepted'
+            else:
+                series_state = 'accepted (partial)'
+        elif 'superseded' in patch_states:
+            series_state = 'superseded'
+        elif 'deferred' in patch_states:
+            series_state = 'deferred'
+        elif 'not-applicable' in patch_states:
+            series_state = 'not-applicable'
+        elif 'under-review' in patch_states or 'rfc' in patch_states:
+            series_state = 'under-review'
+        elif 'new' in patch_states or 'changes-requested' in patch_states:
+            series_state = 'new'
+
         # Collect unique delegates
         delegates_in_series = sorted(set(
             p['delegate'] for p in patches_data
@@ -440,6 +476,7 @@ class SuieApp:
             'date': self._normalize_date(series.get('date', '')),
             'score': series_score.score,
             'is_inactive': is_inactive,
+            'state': series_state,
             'patches': patches_data,
             'delegates': delegates_in_series,
             'checks_summary': {
