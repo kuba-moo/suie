@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -219,11 +220,53 @@ class PatchworkClient:
         return self._get_paginated('events', params)
 
     def save_request_log(self):
-        """Save the request log to disk"""
-        if self.requests_log_path and self.request_log:
-            try:
-                with open(self.requests_log_path, 'w', encoding='utf-8') as f:
-                    json.dump(self.request_log, f, indent=2)
-                logger.info("Saved request log to %s", self.requests_log_path)
-            except Exception as e:
-                logger.error("Failed to save request log: %s", e)
+        """
+        Save the request log to disk (appending to existing entries).
+        If the file reaches 10,000 entries, rotate it to a dated backup file.
+        """
+        if not self.requests_log_path or not self.request_log:
+            return
+
+        try:
+            # Load existing entries if file exists
+            existing_entries = []
+            if os.path.exists(self.requests_log_path):
+                try:
+                    with open(self.requests_log_path, 'r', encoding='utf-8') as f:
+                        existing_entries = json.load(f)
+                    if not isinstance(existing_entries, list):
+                        logger.warning("Request log file is not a list, resetting")
+                        existing_entries = []
+                except json.JSONDecodeError:
+                    logger.warning("Request log file is corrupted, resetting")
+                    existing_entries = []
+
+            # Append new entries
+            all_entries = existing_entries + self.request_log
+
+            # Check if rotation is needed (10,000 entries threshold)
+            if len(all_entries) >= 10000:
+                # Rotate the log to a dated file
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                backup_path = self.requests_log_path.replace('.json', f'_{timestamp}.json')
+
+                # Save all entries to the backup file
+                with open(backup_path, 'w', encoding='utf-8') as f:
+                    json.dump(all_entries, f, indent=2)
+                logger.info("Rotated request log to %s (%d entries)", backup_path, len(all_entries))
+
+                # Reset to empty for the main file
+                all_entries = []
+
+            # Save to main file
+            with open(self.requests_log_path, 'w', encoding='utf-8') as f:
+                json.dump(all_entries, f, indent=2)
+
+            logger.debug("Saved %d new request log entries (total: %d)",
+                        len(self.request_log), len(all_entries))
+
+            # Clear the in-memory log after saving
+            self.request_log = []
+
+        except Exception as e:
+            logger.error("Failed to save request log: %s", e)

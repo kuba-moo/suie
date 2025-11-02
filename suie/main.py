@@ -242,6 +242,45 @@ class SuieApp:
         return reviewers
 
     @staticmethod
+    def _extract_name_from_identity(identity: str) -> str:
+        """
+        Extract a human-readable name from an identity string.
+
+        Handles formats like:
+        - "John Doe <john@example.com>" -> "John Doe"
+        - "john@example.com" -> "John Doe" (from email local part, capitalized)
+        - "john.doe@example.com" -> "John Doe" (from email, capitalized and dots to spaces)
+
+        Args:
+            identity: Identity string (canonical or email)
+
+        Returns:
+            Human-readable name
+        """
+        import re
+
+        # Try to extract name from "Name <email>" format
+        match = re.match(r"^([^<]+)<", identity)
+        if match:
+            name = match.group(1).strip()
+            if name and not "@" in name:  # Make sure we got a name, not an email
+                return name
+
+        # If identity is just an email or we couldn't extract a name,
+        # try to make a readable name from the email local part
+        email_match = re.search(r"([a-zA-Z0-9._%+-]+)@", identity)
+        if email_match:
+            local_part = email_match.group(1)
+            # Replace dots and underscores with spaces
+            name = local_part.replace(".", " ").replace("_", " ")
+            # Capitalize each word
+            name = " ".join(word.capitalize() for word in name.split())
+            return name
+
+        # Last resort: return identity as-is
+        return identity
+
+    @staticmethod
     def _extract_reviewer_emails(patch: Dict) -> List[str]:
         """
         Extract reviewer email addresses from a patch.
@@ -560,15 +599,8 @@ class SuieApp:
                 if reviewer_company != author_company or author_company is None:
                     # Get canonical identity for the reviewer
                     canonical_id = self.dev_db.get_canonical_identity(email)
-                    # Extract name from canonical identity
-                    import re
-
-                    match = re.match(r"^([^<]+)", canonical_id)
-                    if match:
-                        reviewer_name = match.group(1).strip()
-                    else:
-                        # Fallback to email local part
-                        reviewer_name = email.split("@")[0]
+                    # Extract name from canonical identity (prefer name over email)
+                    reviewer_name = self._extract_name_from_identity(canonical_id)
 
                     if reviewer_name not in reviewer_patch_count:
                         reviewer_patch_count[reviewer_name] = set()
