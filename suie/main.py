@@ -184,10 +184,10 @@ class SuieApp:
         # Aggregate check status across all patches
         # For each check context, track the worst state across all patches
         # Priority: missing > fail > warning > success
-        check_states = {}  # check_context -> worst_state
 
-        # Collect all check contexts that should exist
+        # First pass: collect all check contexts and build per-patch check maps
         all_check_contexts = set(expected_checks)
+        patch_checks_map = {}  # patch_id -> {context -> check_data}
 
         for patch_score in series_score.patch_scores:
             patch_id = patch_score.patch_id
@@ -196,33 +196,40 @@ class SuieApp:
                 continue
 
             checks = self.state.get_patch_checks(patch_id)
-            present_checks = {c.get('context') for c in checks}
+            checks_dict = {c.get('context'): c for c in checks}
+            patch_checks_map[patch_id] = checks_dict
+            all_check_contexts.update(checks_dict.keys())
 
-            # Add all present check contexts
-            all_check_contexts.update(present_checks)
+        # Second pass: determine worst state for each check context across all patches
+        check_states = {}  # check_context -> worst_state
 
-            # For each check context, determine status for this patch
-            for context in all_check_contexts:
-                if context not in present_checks:
+        for context in all_check_contexts:
+            worst_state = 'success'  # Start optimistic
+
+            for patch_score in series_score.patch_scores:
+                patch_id = patch_score.patch_id
+                if patch_id not in patch_checks_map:
+                    continue
+
+                checks_dict = patch_checks_map[patch_id]
+
+                if context not in checks_dict:
                     # Check is missing for this patch - highest priority
-                    check_states[context] = 'missing'
+                    worst_state = 'missing'
+                    break  # Can't get worse than missing
                 else:
-                    # Find the check's state for this patch
-                    check = next((c for c in checks if c.get('context') == context), None)
-                    if check:
-                        state = check.get('state', 'unknown')
-                        current_worst = check_states.get(context, 'success')
+                    # Check exists, get its state
+                    check = checks_dict[context]
+                    state = check.get('state', 'unknown')
 
-                        # Update to worst state (priority: missing > fail > warning > success)
-                        if current_worst == 'missing':
-                            # Already at worst state, keep it
-                            pass
-                        elif state == 'fail' or current_worst == 'fail':
-                            check_states[context] = 'fail'
-                        elif state == 'warning' or current_worst == 'warning':
-                            check_states[context] = 'warning'
-                        else:
-                            check_states[context] = state
+                    # Update to worst state (priority: missing > fail > warning > success)
+                    if state == 'fail':
+                        worst_state = 'fail'
+                    elif state == 'warning' and worst_state not in ['fail']:
+                        worst_state = 'warning'
+                    # success doesn't change worst_state unless it's still 'success'
+
+            check_states[context] = worst_state
 
         # Categorize checks by their series-level status
         series_failed_checks = []

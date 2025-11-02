@@ -331,15 +331,60 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             display: grid;
             grid-template-columns: 1fr 100px 200px 150px;
             gap: 15px;
-            align-items: center;
+            align-items: start;
         }
 
         .patch-row:last-child {
             border-bottom: none;
         }
 
+        .patch-info {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
         .patch-name {
             font-size: 13px;
+            font-weight: 500;
+        }
+
+        .failed-check-item {
+            font-size: 12px;
+            padding: 4px 8px;
+            margin: 2px 0;
+            background: #ffeef0;
+            border-left: 3px solid #d73a49;
+            border-radius: 3px;
+            color: #d73a49;
+        }
+
+        [data-theme="dark"] .failed-check-item {
+            background: #3d1319;
+            color: #ff7b72;
+            border-left-color: #ff7b72;
+        }
+
+        .failed-check-item.clickable {
+            cursor: pointer;
+        }
+
+        .failed-check-item.clickable:hover {
+            opacity: 0.8;
+            background: #ffd7dc;
+        }
+
+        [data-theme="dark"] .failed-check-item.clickable:hover {
+            background: #4d1a21;
+        }
+
+        .failed-check-context {
+            font-weight: 600;
+        }
+
+        .failed-check-description {
+            color: var(--text-secondary);
+            margin-left: 8px;
         }
 
         .patch-score {
@@ -609,10 +654,54 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 const patchRow = document.createElement('div');
                 patchRow.className = 'patch-row';
 
+                // Patch info column (name + failed checks)
+                const patchInfoEl = document.createElement('div');
+                patchInfoEl.className = 'patch-info';
+
                 const nameEl = document.createElement('div');
                 nameEl.className = 'patch-name';
                 nameEl.textContent = patch.name;
-                patchRow.appendChild(nameEl);
+                patchInfoEl.appendChild(nameEl);
+
+                // Display failed checks as rows under patch name
+                if (patch.checks_failed.length > 0) {
+                    patch.checks_failed.forEach(check => {
+                        // Handle both old string format and new object format
+                        const isObject = typeof check === 'object';
+                        const context = isObject ? check.context : check;
+                        const description = isObject ? check.description : '';
+                        const targetUrl = isObject ? check.target_url : '';
+
+                        const failedCheckEl = document.createElement('div');
+                        failedCheckEl.className = 'failed-check-item';
+
+                        const contextSpan = document.createElement('span');
+                        contextSpan.className = 'failed-check-context';
+                        contextSpan.textContent = context;
+                        failedCheckEl.appendChild(contextSpan);
+
+                        if (description) {
+                            const descSpan = document.createElement('span');
+                            descSpan.className = 'failed-check-description';
+                            descSpan.textContent = description;
+                            failedCheckEl.appendChild(descSpan);
+                        }
+
+                        // Make clickable if URL is available
+                        if (targetUrl) {
+                            failedCheckEl.classList.add('clickable');
+                            failedCheckEl.title = 'Click to view details';
+                            failedCheckEl.addEventListener('click', (e) => {
+                                e.stopPropagation(); // Don't trigger row expansion
+                                window.open(targetUrl, '_blank');
+                            });
+                        }
+
+                        patchInfoEl.appendChild(failedCheckEl);
+                    });
+                }
+
+                patchRow.appendChild(patchInfoEl);
 
                 // Delegate badge
                 const delegateEl = document.createElement('div');
@@ -625,41 +714,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }
                 patchRow.appendChild(delegateEl);
 
+                // Checks column (only missing and passing summary)
                 const checksEl = document.createElement('div');
                 checksEl.className = 'series-checks';
-
-                if (patch.checks_failed.length > 0) {
-                    patch.checks_failed.forEach(check => {
-                        // Handle both old string format and new object format
-                        const isObject = typeof check === 'object';
-                        const context = isObject ? check.context : check;
-                        const description = isObject ? check.description : '';
-                        const targetUrl = isObject ? check.target_url : '';
-
-                        const badge = document.createElement('span');
-                        badge.className = 'check-badge check-fail';
-                        badge.textContent = context;
-
-                        // Set tooltip with description if available
-                        if (description) {
-                            badge.title = description;
-                        } else {
-                            badge.title = `Check failed: ${context}`;
-                        }
-
-                        // Make clickable if URL is available
-                        if (targetUrl) {
-                            badge.classList.add('clickable');
-                            badge.style.cursor = 'pointer';
-                            badge.addEventListener('click', (e) => {
-                                e.stopPropagation(); // Don't trigger row expansion
-                                window.open(targetUrl, '_blank');
-                            });
-                        }
-
-                        checksEl.appendChild(badge);
-                    });
-                }
 
                 if (patch.checks_missing.length > 0) {
                     patch.checks_missing.forEach(check => {

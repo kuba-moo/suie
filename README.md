@@ -88,11 +88,12 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
   - Failed/missing checks shown individually for quick identification
   - Passing checks summarized as "✓ N" to save space
 - **Patch Details**: Expand any series to see individual patches with:
-  - Patch name
+  - Patch name with failed checks displayed as rows underneath:
+    - Each failed check shows: check name + description
+    - Clickable to open target URL (e.g., CI build page)
+    - Styled with red accent for visibility
   - Assigned delegate (if any)
-  - Check results (failed/missing shown individually, passing summarized)
-    - Failed checks display their description as tooltip
-    - Clicking on a failed check opens its target URL (e.g., CI build page)
+  - Check summary showing only missing checks and passing count
   - Score and scoring comments
 - **Filtering**: Filter by delegate to see only series with patches assigned to specific people
   - Delegate filter updates the URL (e.g., `?delegate=john`)
