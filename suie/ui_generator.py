@@ -64,11 +64,13 @@ class UIGenerator:
 
 # HTML template with embedded JavaScript
 HTML_TEMPLATE = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Suie - Patch Review Queue</title>
+    <link rel="icon" type="image/png" href="suie.png">
     <style>
         :root {
             /* Light mode colors */
