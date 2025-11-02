@@ -110,3 +110,5 @@ We want names of the reviewers to be listed in the UI not their email addresses.
 Add at series levels two links - to the list_archive_url of the series and to the web_url of the series. The former should be called Lore, the latter Patchwork.
 
 Reviewer summarization needs a major rework. First of all the names at the series level are truncated to just the first name for some people (but not all). This seems like a bug. Second colors of the partial reviewer at the series level is too aggressive. It should be something more mellow. For example make the full reviewer a less saturated shade of green and the partial reviewer gray. Third, at the patch level we need to highlight whether the review was present in the patch when it was posted; or it came in later in one of the comments posted to the series.
+
+The Lore link seems to be missing. The UI has too many columns now. Put the links in the same column as the series ID, under it in separate lines. Similarly you can display the delegate and the series state in the same column, one under the other. Finally let the UI get wider for wider screens.

@@ -127,7 +127,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1800px;
             margin: 0 auto;
         }
 
@@ -218,7 +218,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 80px 120px 150px 1fr 100px 80px 100px 120px 180px 200px 30px;
+            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px 30px;
             gap: 15px;
             align-items: center;
         }
@@ -765,17 +765,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const header = document.createElement('div');
             header.className = 'series-header';
 
-            // Series ID
+            // Series ID + Links (column with ID on top, links below)
+            const idLinksEl = document.createElement('div');
+            idLinksEl.style.display = 'flex';
+            idLinksEl.style.flexDirection = 'column';
+            idLinksEl.style.gap = '4px';
+
             const idEl = document.createElement('div');
             idEl.className = 'series-id';
             idEl.textContent = `#${series.id}`;
-            header.appendChild(idEl);
+            idLinksEl.appendChild(idEl);
 
-            // Links (Lore and Patchwork)
+            // Links container
             const linksEl = document.createElement('div');
             linksEl.style.display = 'flex';
             linksEl.style.gap = '8px';
-            linksEl.style.fontSize = '12px';
+            linksEl.style.fontSize = '11px';
 
             if (series.lore_url) {
                 const loreLink = document.createElement('a');
@@ -794,7 +799,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             if (series.patchwork_url) {
                 const pwLink = document.createElement('a');
                 pwLink.href = series.patchwork_url;
-                pwLink.textContent = 'Patchwork';
+                pwLink.textContent = 'PW';
                 pwLink.target = '_blank';
                 pwLink.style.color = 'var(--text-link)';
                 pwLink.style.textDecoration = 'none';
@@ -805,7 +810,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 linksEl.appendChild(pwLink);
             }
 
-            header.appendChild(linksEl);
+            idLinksEl.appendChild(linksEl);
+            header.appendChild(idLinksEl);
 
             // Author
             const authorEl = document.createElement('div');
@@ -834,9 +840,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             scoreEl.title = `Score: ${series.score.toFixed(2)}`;
             header.appendChild(scoreEl);
 
+            // State + Delegates (combined column with state on top, delegates below)
+            const stateDelegatesEl = document.createElement('div');
+            stateDelegatesEl.style.display = 'flex';
+            stateDelegatesEl.style.flexDirection = 'column';
+            stateDelegatesEl.style.gap = '4px';
+
             // State
-            const stateEl = document.createElement('div');
-            stateEl.className = 'series-state';
+            const stateContainer = document.createElement('div');
+            stateContainer.className = 'series-state';
             if (series.state) {
                 const stateBadge = document.createElement('span');
                 stateBadge.className = 'state-badge';
@@ -847,23 +859,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                 stateBadge.textContent = series.state;
                 stateBadge.title = `State: ${series.state}`;
-                stateEl.appendChild(stateBadge);
+                stateContainer.appendChild(stateBadge);
             }
-            header.appendChild(stateEl);
+            stateDelegatesEl.appendChild(stateContainer);
 
             // Delegates
-            const delegatesEl = document.createElement('div');
-            delegatesEl.className = 'series-checks';
+            const delegatesContainer = document.createElement('div');
+            delegatesContainer.className = 'series-checks';
             if (series.delegates && series.delegates.length > 0) {
                 series.delegates.forEach(delegate => {
                     const badge = document.createElement('span');
                     badge.className = 'delegate-badge';
                     badge.textContent = delegate;
                     badge.title = `Delegate: ${delegate}`;
-                    delegatesEl.appendChild(badge);
+                    delegatesContainer.appendChild(badge);
                 });
             }
-            header.appendChild(delegatesEl);
+            stateDelegatesEl.appendChild(delegatesContainer);
+
+            header.appendChild(stateDelegatesEl);
 
             // External Reviewers
             const reviewersEl = document.createElement('div');
