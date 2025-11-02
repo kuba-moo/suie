@@ -238,9 +238,9 @@ class SuieApp:
             if name:
                 commenters.add(name)
 
-                # Log if commenter is not in ml-stats
+                # Log if commenter is not in ml-stats (unless it's a bot)
                 email = submitter.get('email') or ''
-                if email:
+                if email and not self.dev_db.is_bot(email):
                     stats_key = self.dev_db._find_in_stats(email)
                     if not stats_key:
                         logger.info(
@@ -825,13 +825,14 @@ class SuieApp:
         if author_email:
             author_company = self.dev_db.get_company(author_email)
 
-            # Warn if author is not found in ml-stats
-            stats_key = self.dev_db._find_in_stats(author_email)
-            if not stats_key:
-                logger.warning(
-                    "Author %s (%s) not found in ml-stats for series #%d: %s",
-                    author_name, author_email, series["id"], series.get("name", "")
-                )
+            # Warn if author is not found in ml-stats (unless it's a bot)
+            if not self.dev_db.is_bot(author_email):
+                stats_key = self.dev_db._find_in_stats(author_email)
+                if not stats_key:
+                    logger.warning(
+                        "Author %s (%s) not found in ml-stats for series #%d: %s",
+                        author_name, author_email, series["id"], series.get("name", "")
+                    )
 
         # Check if series is inactive
         is_inactive = self.state.is_series_inactive(series["id"])
@@ -930,13 +931,14 @@ class SuieApp:
                     else:
                         canonical_email = email
 
-                    # Check if reviewer is in ml-stats
-                    stats_key = self.dev_db._find_in_stats(email)
-                    if not stats_key:
-                        logger.info(
-                            "Reviewer %s (%s) not found in ml-stats for series #%d",
-                            name, email, series["id"]
-                        )
+                    # Check if reviewer is in ml-stats (unless it's a bot)
+                    if not self.dev_db.is_bot(email):
+                        stats_key = self.dev_db._find_in_stats(email)
+                        if not stats_key:
+                            logger.info(
+                                "Reviewer %s (%s) not found in ml-stats for series #%d",
+                                name, email, series["id"]
+                            )
 
                     # Add or update reviewer data
                     if canonical_email not in reviewer_data:

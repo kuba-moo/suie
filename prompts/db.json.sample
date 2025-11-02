@@ -18,5 +18,9 @@
       "@work.com>",
       "WhereWeWork"
     ]
+  ],
+  "bots": [
+     "<pr-tracker-bot@kernel.org>",
+     "<bot+bpf-ci@kernel.org>"
   ]
 }

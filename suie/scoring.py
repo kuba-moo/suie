@@ -45,6 +45,7 @@ class DeveloperDatabase:
         """
         self.mailmap_list: List[List[str]] = []  # list of [pattern, canonical]
         self.corpmap_list: List[List[str]] = []  # list of [pattern, company]
+        self.bots: List[str] = []  # list of bot email addresses
         self.stats: Dict = {}  # developer statistics
 
         if db_path:
@@ -80,9 +81,12 @@ class DeveloperDatabase:
                         # Add mapping for the mailmap SOURCE too
                         self.corpmap_list.append([mailmap_pattern, company])
 
-            logger.info("Loaded %d mailmap entries and %d corpmap entries (expanded to %d)",
+            # Load bots list
+            self.bots = data.get('bots', [])
+
+            logger.info("Loaded %d mailmap entries and %d corpmap entries (expanded to %d), %d bots",
                        len(self.mailmap_list), len(data.get('corpmap', [])),
-                       len(self.corpmap_list))
+                       len(self.corpmap_list), len(self.bots))
         except Exception as e:
             logger.error("Failed to load database from %s: %s", db_path, e)
 
@@ -207,6 +211,27 @@ class DeveloperDatabase:
             return score_data.get('positive', 0)
 
         return 0
+
+    def is_bot(self, email: str) -> bool:
+        """
+        Check if an email address belongs to a bot
+
+        Args:
+            email: Email address to check
+
+        Returns:
+            True if the email is in the bots list, False otherwise
+        """
+        # Ensure email has angle brackets for consistent matching
+        if '<' not in email:
+            email = '<' + email + '>'
+
+        # Check if email matches any bot
+        for bot_email in self.bots:
+            if bot_email in email or email in bot_email:
+                return True
+
+        return False
 
     def get_company_reviewer_score(self, email: str) -> float:
         """
