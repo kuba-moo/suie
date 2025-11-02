@@ -205,7 +205,8 @@ class ScoringContext:
 
         # Process checks: separate expected vs additional, and determine outcomes
         self.expected_checks = expected_checks or []
-        self.check_outcomes: Dict[str, str] = {}  # check_name -> outcome (pass/warning/fail/missing)
+        # check_name -> outcome (pass/warning/fail/missing)
+        self.check_outcomes: Dict[str, str] = {}
         self.additional_checks: List[Dict] = []  # checks not in expected_checks
 
         # Parse useful information

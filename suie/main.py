@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import re
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -203,8 +204,6 @@ class SuieApp:
         Returns:
             Dictionary mapping reviewer name -> source ('original' or 'comment')
         """
-        import re
-
         reviewers = {}  # reviewer_name -> source
 
         # Extract from patch headers and content (original)
@@ -266,8 +265,6 @@ class SuieApp:
         Returns:
             List of reviewer names (not emails)
         """
-        import re
-
         reviewers = []
         seen = set()  # Deduplicate reviewers
 
@@ -327,8 +324,6 @@ class SuieApp:
         Returns:
             Human-readable name
         """
-        import re
-
         # Clean up the identity first
         identity = identity.strip()
 
@@ -366,8 +361,6 @@ class SuieApp:
         Returns:
             List of reviewer email addresses
         """
-        import re
-
         reviewers = []
         seen = set()  # Deduplicate reviewers
 
@@ -401,7 +394,8 @@ class SuieApp:
 
         # Also check patch content for trailers - only Reviewed-by and Acked-by
         content = patch.get("content", "")
-        tag_pattern = r"(?:Reviewed-by|Acked-by):\s*(?:[^<\n]+<)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"
+        tag_pattern = (r"(?:Reviewed-by|Acked-by):\s*(?:[^<\n]+<)?"
+                      r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
         matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
         for email in matches:
@@ -586,17 +580,17 @@ class SuieApp:
                     # Check is missing for this patch - highest priority
                     worst_state = "missing"
                     break  # Can't get worse than missing
-                else:
-                    # Check exists, get its state
-                    check = checks_dict[context]
-                    state = check.get("state", "unknown")
 
-                    # Update to worst state (priority: missing > fail > warning > success)
-                    if state == "fail":
-                        worst_state = "fail"
-                    elif state == "warning" and worst_state not in ["fail"]:
-                        worst_state = "warning"
-                    # success doesn't change worst_state unless it's still 'success'
+                # Check exists, get its state
+                check = checks_dict[context]
+                state = check.get("state", "unknown")
+
+                # Update to worst state (priority: missing > fail > warning > success)
+                if state == "fail":
+                    worst_state = "fail"
+                elif state == "warning" and worst_state not in ["fail"]:
+                    worst_state = "warning"
+                # success doesn't change worst_state unless it's still 'success'
 
             check_states[context] = worst_state
 
@@ -745,7 +739,6 @@ class SuieApp:
 
             # Extract review tags with email addresses from the patch
             # This preserves the full names as they appear in the patch
-            import re
 
             # Helper function to process review tags
             def process_review_tag(value):
@@ -832,7 +825,7 @@ class SuieApp:
         reviewers_full = []
         reviewers_partial = []
 
-        for canonical_email, data in reviewer_data.items():
+        for _canonical_email, data in reviewer_data.items():
             reviewer_name = data['name']
             patch_ids = data['patches']
             if len(patch_ids) == total_patches:
