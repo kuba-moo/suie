@@ -228,6 +228,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border: 1px solid #34d058;
         }
 
+        .check-badge.clickable {
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .check-badge.clickable:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+
         .delegate-badge {
             padding: 2px 8px;
             border-radius: 12px;
@@ -537,9 +548,33 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                 if (patch.checks_failed.length > 0) {
                     patch.checks_failed.forEach(check => {
+                        // Handle both old string format and new object format
+                        const isObject = typeof check === 'object';
+                        const context = isObject ? check.context : check;
+                        const description = isObject ? check.description : '';
+                        const targetUrl = isObject ? check.target_url : '';
+
                         const badge = document.createElement('span');
                         badge.className = 'check-badge check-fail';
-                        badge.textContent = check;
+                        badge.textContent = context;
+
+                        // Set tooltip with description if available
+                        if (description) {
+                            badge.title = description;
+                        } else {
+                            badge.title = `Check failed: ${context}`;
+                        }
+
+                        // Make clickable if URL is available
+                        if (targetUrl) {
+                            badge.classList.add('clickable');
+                            badge.style.cursor = 'pointer';
+                            badge.addEventListener('click', (e) => {
+                                e.stopPropagation(); // Don't trigger row expansion
+                                window.open(targetUrl, '_blank');
+                            });
+                        }
+
                         checksEl.appendChild(badge);
                     });
                 }

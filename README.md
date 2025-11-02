@@ -87,6 +87,8 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
   - Patch name
   - Assigned delegate (if any)
   - Check results (failed/missing shown individually, passing summarized)
+    - Failed checks display their description as tooltip
+    - Clicking on a failed check opens its target URL (e.g., CI build page)
   - Score and scoring comments
 - **Filtering**: Filter by delegate to see only series with patches assigned to specific people
   - Delegate filter updates the URL (e.g., `?delegate=john`)

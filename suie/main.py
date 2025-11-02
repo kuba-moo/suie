@@ -252,9 +252,14 @@ class SuieApp:
             passing_checks = 0
             for check in checks:
                 state = check.get('state')
-                context = check.get('context')
                 if state in ['fail', 'warning']:
-                    failed_checks.append(context)
+                    # Store full check data for failed checks (need URL and description)
+                    failed_checks.append({
+                        'context': check.get('context'),
+                        'state': state,
+                        'description': check.get('description', ''),
+                        'target_url': check.get('target_url', '')
+                    })
                 elif state == 'success':
                     passing_checks += 1
 
