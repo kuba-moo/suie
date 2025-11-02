@@ -680,8 +680,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h1><img src="suie.png" alt="Suie">Suie - Patch Review Queue</h1>
             <div class="stats">
                 Generated at: <span id="generated-time"></span> |
-                Total series: <span id="total-series"></span> |
-                Visible: <span id="visible-series"></span>
+                Series: <span id="visible-series"></span> / <span id="total-series"></span> |
+                Patches: <span id="visible-patches"></span> / <span id="total-patches"></span>
             </div>
             <div class="controls">
                 <div class="control-group">
@@ -758,6 +758,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const genTime = new Date(generatedAt);
             document.getElementById('generated-time').textContent = formatRelativeTime(genTime);
             document.getElementById('total-series').textContent = seriesData.length;
+
+            // Count total patches
+            const totalPatches = seriesData.reduce((sum, series) => sum + series.patches.length, 0);
+            document.getElementById('total-patches').textContent = totalPatches;
         }
 
         function loadFiltersFromURL() {
@@ -817,6 +821,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             container.appendChild(headerRow);
 
             let visibleCount = 0;
+            let visiblePatchCount = 0;
 
             seriesData.forEach(series => {
                 // Apply filters
@@ -843,10 +848,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }
 
                 visibleCount++;
+                visiblePatchCount += series.patches.length;
                 container.appendChild(createSeriesRow(series));
             });
 
             document.getElementById('visible-series').textContent = visibleCount;
+            document.getElementById('visible-patches').textContent = visiblePatchCount;
         }
 
         function createSeriesRow(series) {
