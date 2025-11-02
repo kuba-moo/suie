@@ -138,3 +138,5 @@ Calculate the time since the most recent comment was posted and expose it to the
 Treat Changes Requested as a distinct and separate state. Patches which are in Changes Requested state are not active.
 
 Add to the summary line which lists the number of series (total and visible) the number of patches. Consider patch visible if its series is visible.
+
+The project correctly detects when series state is "partial" (specifically accepted). However, when series is partially accepted and partially in an inactive state it still shows up as active in the display. A series should only show up as active if some of the patches are in an active state (new or under-review).

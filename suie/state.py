@@ -167,7 +167,9 @@ class StateManager:
 
     def is_series_inactive(self, series_id: int) -> bool:
         """
-        Check if a series is inactive (archived or in a terminal state)
+        Check if a series is inactive.
+        A series is active only if at least one patch is in an active state.
+        Active states are: new, under-review
 
         Args:
             series_id: Series ID to check
@@ -179,16 +181,20 @@ class StateManager:
         if not patches:
             return False
 
-        # A series is inactive if all patches are archived
-        # or in a terminal state like "accepted" or "rejected"
-        inactive_states = {'accepted', 'rejected', 'superseded', 'deferred', 'not-applicable', 'changes-requested', 'rfc', 'awaiting-upstream'}
+        # Define active states - series is active only if at least one patch is in these states
+        active_states = {'new', 'under-review'}
 
         for patch in patches:
-            if not patch.get('archived', False):
-                state = patch.get('state', '').lower()
-                if state not in inactive_states:
-                    return False
+            # Skip archived patches
+            if patch.get('archived', False):
+                continue
 
+            # Check if patch is in an active state
+            state = patch.get('state', '').lower()
+            if state in active_states:
+                return False  # Found an active patch, series is active
+
+        # No active patches found, series is inactive
         return True
 
     def get_stats(self) -> Dict:
