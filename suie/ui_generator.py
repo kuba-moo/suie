@@ -692,6 +692,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <label for="delegate-filter">Delegate:</label>
                     <select id="delegate-filter">
                         <option value="">All</option>
+                        <option value="__none__">Unassigned</option>
                         {% for delegate in delegates %}
                         <option value="{{ delegate }}">{{ delegate }}</option>
                         {% endfor %}
@@ -824,11 +825,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }
 
                 if (delegateFilter) {
-                    const hasDelegateMatch = series.patches.some(patch =>
-                        patch.delegate === delegateFilter
-                    );
-                    if (!hasDelegateMatch) {
-                        return;
+                    if (delegateFilter === '__none__') {
+                        // Show only series with no delegate
+                        const hasAnyDelegate = series.patches.some(patch => patch.delegate);
+                        if (hasAnyDelegate) {
+                            return;
+                        }
+                    } else {
+                        // Show series where at least one patch has the selected delegate
+                        const hasDelegateMatch = series.patches.some(patch =>
+                            patch.delegate === delegateFilter
+                        );
+                        if (!hasDelegateMatch) {
+                            return;
+                        }
                     }
                 }
 
