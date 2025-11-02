@@ -191,8 +191,7 @@ class SuieApp:
             age_breakdown["weekend_hours"],
         )
 
-    @staticmethod
-    def _extract_commenters_without_tags(comments: List[Dict]) -> List[str]:
+    def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int) -> List[str]:
         """
         Extract names of people who commented without providing review tags.
 
@@ -232,6 +231,17 @@ class SuieApp:
 
             if name:
                 commenters.add(name)
+                
+                # Log if commenter is not in ml-stats
+                email = submitter.get('email') or ''
+                if email:
+                    canonical_id = self.dev_db.get_canonical_identity(email)
+                    individual_stats = self.dev_db.stats.get('individual', {})
+                    if canonical_id not in individual_stats:
+                        logger.info(
+                            "Commenter %s (%s) not found in ml-stats for series #%d",
+                            name, email, series_id
+                        )
 
         return sorted(list(commenters))
 
@@ -704,7 +714,7 @@ class SuieApp:
             ]
 
             # Get commenters (people who commented without providing review tags)
-            commenters = self._extract_commenters_without_tags(comments)
+            commenters = self._extract_commenters_without_tags(comments, series["id"])
 
             patches_data.append(
                 {
@@ -721,9 +731,20 @@ class SuieApp:
                 }
             )
 
-        # Get author name
+        # Get author name and check if they're in stats
         submitter = series.get("submitter", {})
         author_name = submitter.get("name", submitter.get("email", "Unknown"))
+        author_email = submitter.get("email", "")
+        
+        # Warn if author is not found in ml-stats
+        if author_email:
+            canonical_id = self.dev_db.get_canonical_identity(author_email)
+            individual_stats = self.dev_db.stats.get('individual', {})
+            if canonical_id not in individual_stats:
+                logger.warning(
+                    "Author %s (%s) not found in ml-stats for series #%d: %s",
+                    author_name, author_email, series["id"], series.get("name", "")
+                )
 
         # Check if series is inactive
         is_inactive = self.state.is_series_inactive(series["id"])
@@ -821,6 +842,14 @@ class SuieApp:
                         canonical_email = canonical_email_match.group(1)
                     else:
                         canonical_email = email
+
+                    # Check if reviewer is in ml-stats
+                    individual_stats = self.dev_db.stats.get('individual', {})
+                    if canonical_id not in individual_stats:
+                        logger.info(
+                            "Reviewer %s (%s) not found in ml-stats for series #%d",
+                            name, email, series["id"]
+                        )
 
                     # Add or update reviewer data
                     if canonical_email not in reviewer_data:
