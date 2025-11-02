@@ -1,0 +1,41 @@
+# Suie Configuration Sample
+
+# Patchwork API configuration
+patchwork:
+  url: "https://patchwork.kernel.org/api/1.3"
+  project: "netdevbpf"  # Project name or ID
+  user_agent: "Suie/1.0 (your-email@example.com)"
+
+# State mirroring configuration
+state:
+  lookback_days: 7  # How far back to look for active series
+
+# Web UI configuration
+ui:
+  output_path: "output/index.html"
+  hide_inactive_default: true
+
+  # Expected checks to monitor (show missing/failing ones)
+  expected_checks:
+    - "build"
+    - "test"
+    - "checkpatch"
+
+# Sorting configuration
+sorting:
+  module_path: "scoring/example_scorer.py"
+  function_name: "score_patch"
+
+# Developer database configuration
+database:
+  # Maps email addresses to canonical names
+  mailmap_path: "prompts/db.json.sample"
+
+  # Developer statistics (reviewer scores)
+  stats_path: "prompts/ml-stats.json.sample"
+
+# Logging configuration
+logging:
+  # JSON file to log Patchwork API requests
+  requests_log: "output/patchwork_requests.json"
+  level: "INFO"

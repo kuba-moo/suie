@@ -1,0 +1,229 @@
+"""Patchwork API client with retry logic and request logging"""
+
+import json
+import logging
+import time
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+from urllib.parse import urljoin
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+
+logger = logging.getLogger(__name__)
+
+
+class PatchworkClient:
+    """Client for interacting with the Patchwork API"""
+
+    def __init__(self, base_url: str, user_agent: str, requests_log_path: Optional[str] = None):
+        """
+        Initialize the Patchwork client
+
+        Args:
+            base_url: Base URL for the Patchwork API
+            user_agent: User agent string to use for requests
+            requests_log_path: Path to JSON file for logging requests
+        """
+        self.base_url = base_url.rstrip('/')
+        self.user_agent = user_agent
+        self.requests_log_path = requests_log_path
+        self.request_log = []
+
+        # Configure session with retry logic
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        self.session.headers.update({'User-Agent': self.user_agent})
+
+    def _log_request(self, url: str, duration: float, count: int, error: Optional[str] = None):
+        """Log a request for later analysis"""
+        log_entry = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'url': url,
+            'duration_ms': round(duration * 1000, 2),
+            'object_count': count,
+            'error': error
+        }
+        self.request_log.append(log_entry)
+        logger.debug("Request to %s: %.2fms, %d objects", url, duration*1000, count)
+
+    def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        Make a GET request to the API
+
+        Args:
+            endpoint: API endpoint (relative to base_url)
+            params: Query parameters
+
+        Returns:
+            Response JSON data
+        """
+        url = urljoin(self.base_url + '/', endpoint)
+        start_time = time.time()
+
+        try:
+            response = self.session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            duration = time.time() - start_time
+
+            # Count objects in response
+            count = len(data) if isinstance(data, list) else 1
+            self._log_request(url, duration, count)
+
+            return data
+        except Exception as e:
+            duration = time.time() - start_time
+            self._log_request(url, duration, 0, str(e))
+            logger.error("Request to %s failed: %s", url, e)
+            raise
+
+    def _get_paginated(self, endpoint: str, params: Optional[Dict] = None) -> List[Dict]:
+        """
+        Fetch all pages of a paginated endpoint
+
+        Args:
+            endpoint: API endpoint
+            params: Query parameters
+
+        Returns:
+            List of all objects from all pages
+        """
+        if params is None:
+            params = {}
+
+        # Set a reasonable page size
+        params.setdefault('per_page', 100)
+
+        results = []
+        page = 1
+
+        while True:
+            params['page'] = page
+            data = self._make_request(endpoint, params)
+
+            if not data:
+                break
+
+            results.extend(data)
+
+            # Check if there are more pages
+            # Patchwork API returns an empty list when no more results
+            if len(data) < params['per_page']:
+                break
+
+            page += 1
+            time.sleep(0.1)  # Small delay between pages
+
+        return results
+
+    def get_series(self, project: str, since: Optional[str] = None, **kwargs) -> List[Dict]:
+        """
+        Get series for a project
+
+        Args:
+            project: Project ID or linkname
+            since: ISO8601 timestamp for filtering (earliest date-time)
+            **kwargs: Additional query parameters
+
+        Returns:
+            List of series
+        """
+        params = {'project': project}
+        if since:
+            params['since'] = since
+        params.update(kwargs)
+
+        return self._get_paginated('series', params)
+
+    def get_series_detail(self, series_id: int) -> Dict:
+        """Get detailed information about a series"""
+        return self._make_request(f'series/{series_id}')
+
+    def get_patches(self, series_id: Optional[int] = None, project: Optional[str] = None,
+                   since: Optional[str] = None, **kwargs) -> List[Dict]:
+        """
+        Get patches, optionally filtered by series or project
+
+        Args:
+            series_id: Filter by series ID
+            project: Filter by project
+            since: ISO8601 timestamp for filtering
+            **kwargs: Additional query parameters
+
+        Returns:
+            List of patches
+        """
+        params = {}
+        if series_id is not None:
+            params['series'] = series_id
+        if project is not None:
+            params['project'] = project
+        if since:
+            params['since'] = since
+        params.update(kwargs)
+
+        return self._get_paginated('patches', params)
+
+    def get_patch_detail(self, patch_id: int) -> Dict:
+        """Get detailed information about a patch"""
+        return self._make_request(f'patches/{patch_id}')
+
+    def get_patch_comments(self, patch_id: int) -> List[Dict]:
+        """Get comments for a patch"""
+        return self._get_paginated(f'patches/{patch_id}/comments')
+
+    def get_patch_checks(self, patch_id: int) -> List[Dict]:
+        """Get checks for a patch"""
+        return self._get_paginated(f'patches/{patch_id}/checks')
+
+    def get_cover_detail(self, cover_id: int) -> Dict:
+        """Get detailed information about a cover letter"""
+        return self._make_request(f'covers/{cover_id}')
+
+    def get_cover_comments(self, cover_id: int) -> List[Dict]:
+        """Get comments for a cover letter"""
+        return self._get_paginated(f'covers/{cover_id}/comments')
+
+    def get_events(self, project: str, since: Optional[str] = None,
+                   category: Optional[str] = None, **kwargs) -> List[Dict]:
+        """
+        Get events for a project
+
+        Args:
+            project: Project ID or linkname
+            since: ISO8601 timestamp for filtering
+            category: Event category to filter by
+            **kwargs: Additional query parameters
+
+        Returns:
+            List of events
+        """
+        params = {'project': project}
+        if since:
+            params['since'] = since
+        if category:
+            params['category'] = category
+        params.update(kwargs)
+
+        return self._get_paginated('events', params)
+
+    def save_request_log(self):
+        """Save the request log to disk"""
+        if self.requests_log_path and self.request_log:
+            try:
+                with open(self.requests_log_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.request_log, f, indent=2)
+                logger.info("Saved request log to %s", self.requests_log_path)
+            except Exception as e:
+                logger.error("Failed to save request log: %s", e)
