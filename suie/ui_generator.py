@@ -503,6 +503,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-color: #505050;
         }
 
+        .commenter-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #fff9e6;
+            color: #b58600;
+            border: 1px solid #d4a800;
+        }
+
+        [data-theme="dark"] .commenter-badge {
+            background-color: #3d3520;
+            color: #f0c040;
+            border-color: #8a7000;
+        }
+
         .expand-icon {
             transition: transform 0.2s;
             font-size: 18px;
@@ -925,7 +941,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             header.appendChild(stateDelegatesEl);
 
-            // External Reviewers
+            // External Reviewers and Commenters
             const reviewersEl = document.createElement('div');
             reviewersEl.className = 'series-checks';
             // Show reviewers who reviewed ALL patches first
@@ -945,6 +961,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     badge.className = 'reviewer-badge-partial';
                     badge.textContent = reviewer;
                     badge.title = `Reviewed some patches: ${reviewer}`;
+                    reviewersEl.appendChild(badge);
+                });
+            }
+            // Finally show commenters (people who commented without review tags)
+            if (series.commenters && series.commenters.length > 0) {
+                series.commenters.forEach(commenter => {
+                    const badge = document.createElement('span');
+                    badge.className = 'commenter-badge';
+                    badge.textContent = commenter;
+                    badge.title = `${commenter} (commented without review tag on at least one patch)`;
                     reviewersEl.appendChild(badge);
                 });
             }
@@ -1067,9 +1093,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }
                 patchRow.appendChild(delegateEl);
 
-                // Reviewers
+                // Reviewers and Commenters
                 const reviewersEl = document.createElement('div');
                 reviewersEl.className = 'series-checks';
+
+                // Show reviewers with tags first
                 if (patch.reviewers && patch.reviewers.length > 0) {
                     patch.reviewers.forEach(reviewer => {
                         // Handle both old string format and new object format
@@ -1090,6 +1118,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         reviewersEl.appendChild(badge);
                     });
                 }
+
+                // Show commenters (people who commented without review tags)
+                if (patch.commenters && patch.commenters.length > 0) {
+                    patch.commenters.forEach(commenter => {
+                        const badge = document.createElement('span');
+                        badge.className = 'commenter-badge';
+                        badge.textContent = commenter;
+                        badge.title = `${commenter} (commented without review tag)`;
+                        reviewersEl.appendChild(badge);
+                    });
+                }
+
                 patchRow.appendChild(reviewersEl);
 
                 // Checks column (only missing and passing summary)

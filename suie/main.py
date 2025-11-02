@@ -192,6 +192,50 @@ class SuieApp:
         )
 
     @staticmethod
+    def _extract_commenters_without_tags(comments: List[Dict]) -> List[str]:
+        """
+        Extract names of people who commented without providing review tags.
+
+        Args:
+            comments: List of comments
+
+        Returns:
+            List of commenter names (deduplicated)
+        """
+        commenters = set()
+
+        for comment in comments:
+            # Skip empty comments
+            content = comment.get('content', '').strip()
+            if not content or len(content) < 20:  # Skip very short comments
+                continue
+
+            # Check if comment contains review tags - if so, skip (already tracked)
+            tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*"
+            if re.search(tag_pattern, content, re.IGNORECASE):
+                continue
+
+            # Extract submitter information
+            submitter = comment.get('submitter', {})
+            name = (submitter.get('name') or '').strip()
+
+            # If no name, try to extract from email
+            if not name:
+                email = submitter.get('email') or ''
+                if email:
+                    # Extract name from email local part
+                    local_match = re.match(r"([^@]+)@", email)
+                    if local_match:
+                        local_part = local_match.group(1)
+                        name = local_part.replace('.', ' ').replace('_', ' ')
+                        name = ' '.join(word.capitalize() for word in name.split())
+
+            if name:
+                commenters.add(name)
+
+        return sorted(list(commenters))
+
+    @staticmethod
     def _extract_reviewer_names_with_source(patch: Dict, comments: List[Dict]) -> Dict[str, str]:
         """
         Extract reviewer names with their source (original or comment).
@@ -659,6 +703,9 @@ class SuieApp:
                 for name, source in reviewers_with_source.items()
             ]
 
+            # Get commenters (people who commented without providing review tags)
+            commenters = self._extract_commenters_without_tags(comments)
+
             patches_data.append(
                 {
                     "id": patch_id,
@@ -670,6 +717,7 @@ class SuieApp:
                     "checks_passing": passing_checks,
                     "delegate": delegate,
                     "reviewers": reviewers,
+                    "commenters": commenters,
                 }
             )
 
@@ -837,6 +885,14 @@ class SuieApp:
         reviewers_full.sort()
         reviewers_partial.sort()
 
+        # Aggregate commenters (people who commented without review tags) at series level
+        # Track commenters who commented on at least one patch without providing tags
+        all_commenters = set()
+        for patch_data in patches_data:
+            all_commenters.update(patch_data["commenters"])
+
+        series_commenters = sorted(list(all_commenters))
+
         # Get Lore URL - try cover letter first, then first patch
         lore_url = series.get("list_archive_url")
         if not lore_url:
@@ -871,6 +927,7 @@ class SuieApp:
             "delegates": delegates_in_series,
             "reviewers_full": reviewers_full,
             "reviewers_partial": reviewers_partial,
+            "commenters": series_commenters,
             "lore_url": lore_url,
             "patchwork_url": series.get("web_url"),
             "checks_summary": {
