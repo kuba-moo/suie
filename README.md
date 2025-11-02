@@ -94,6 +94,7 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
     - Clickable to open target URL (e.g., CI build page)
     - Styled with red accent for visibility
   - Assigned delegate (if any)
+  - Reviewers (extracted from Reviewed-by, Acked-by, Tested-by tags)
   - Check summary showing only missing checks and passing count
   - Score and scoring comments
 - **Filtering**: Filter by delegate to see only series with patches assigned to specific people

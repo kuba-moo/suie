@@ -337,6 +337,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #24292e;
         }
 
+        [data-theme="dark"] .delegate-badge {
+            background-color: #30363d;
+            color: #c9d1d9;
+        }
+
+        .reviewer-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #ddf4ff;
+            color: #0969da;
+        }
+
+        [data-theme="dark"] .reviewer-badge {
+            background-color: #1a2d3d;
+            color: #58a6ff;
+        }
+
         .expand-icon {
             transition: transform 0.2s;
             font-size: 18px;
@@ -361,7 +380,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 10px 20px 10px 60px;
             border-bottom: 1px solid var(--border-color);
             display: grid;
-            grid-template-columns: 1fr 100px 200px 150px;
+            grid-template-columns: 1fr 100px 180px 200px 150px;
             gap: 15px;
             align-items: start;
         }
@@ -777,6 +796,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     delegateEl.appendChild(delegateBadge);
                 }
                 patchRow.appendChild(delegateEl);
+
+                // Reviewers
+                const reviewersEl = document.createElement('div');
+                reviewersEl.className = 'series-checks';
+                if (patch.reviewers && patch.reviewers.length > 0) {
+                    patch.reviewers.forEach(reviewer => {
+                        const badge = document.createElement('span');
+                        badge.className = 'reviewer-badge';
+                        badge.textContent = reviewer;
+                        badge.title = `Reviewer: ${reviewer}`;
+                        reviewersEl.appendChild(badge);
+                    });
+                }
+                patchRow.appendChild(reviewersEl);
 
                 // Checks column (only missing and passing summary)
                 const checksEl = document.createElement('div');

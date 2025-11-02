@@ -180,6 +180,63 @@ class SuieApp:
         )
 
     @staticmethod
+    def _extract_reviewer_names(patch: Dict) -> List[str]:
+        """
+        Extract reviewer names from a patch.
+        Looks for Reviewed-by, Acked-by, and Tested-by tags.
+
+        Args:
+            patch: Patch data
+
+        Returns:
+            List of reviewer names (not emails)
+        """
+        import re
+
+        reviewers = []
+        seen = set()  # Deduplicate reviewers
+
+        # Check headers
+        headers = patch.get('headers', {})
+        tag_headers = ['Reviewed-by', 'Acked-by', 'Tested-by']
+
+        for tag_type in tag_headers:
+            values = headers.get(tag_type, [])
+            if not isinstance(values, list):
+                values = [values]
+
+            for value in values:
+                # Extract name from "Name <email>" format
+                # Try to get name before <email>
+                match = re.match(r'^([^<]+)<', value)
+                if match:
+                    name = match.group(1).strip()
+                    if name and name not in seen:
+                        reviewers.append(name)
+                        seen.add(name)
+                else:
+                    # Try to extract just email and use local part
+                    email_match = re.search(r'([a-zA-Z0-9._%+-]+)@', value)
+                    if email_match:
+                        name = email_match.group(1)
+                        if name and name not in seen:
+                            reviewers.append(name)
+                            seen.add(name)
+
+        # Also check patch content for trailers
+        content = patch.get('content', '')
+        tag_pattern = r'(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<|$)'
+        matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
+
+        for name in matches:
+            name = name.strip()
+            if name and name not in seen:
+                reviewers.append(name)
+                seen.add(name)
+
+        return reviewers
+
+    @staticmethod
     def _normalize_date(date_str: str) -> str:
         """
         Normalize a date string to ISO 8601 format with UTC timezone.
@@ -348,6 +405,9 @@ class SuieApp:
             if delegate_data:
                 delegate = delegate_data.get('username')
 
+            # Get reviewers
+            reviewers = self._extract_reviewer_names(patch)
+
             patches_data.append({
                 'id': patch_id,
                 'name': patch.get('name', 'Unknown'),
@@ -356,7 +416,8 @@ class SuieApp:
                 'checks_failed': failed_checks,
                 'checks_missing': missing_checks,
                 'checks_passing': passing_checks,
-                'delegate': delegate
+                'delegate': delegate,
+                'reviewers': reviewers
             })
 
         # Get author name
