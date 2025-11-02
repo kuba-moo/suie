@@ -197,6 +197,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             box-shadow: 0 1px 3px var(--shadow);
         }
 
+        .series-list-header {
+            padding: 12px 20px;
+            display: grid;
+            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px 30px;
+            gap: 15px;
+            align-items: center;
+            background-color: var(--bg-secondary);
+            border-bottom: 2px solid var(--border-color);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            border-radius: 6px 6px 0 0;
+        }
+
         .series-row {
             border-bottom: 1px solid var(--border-color);
             cursor: pointer;
@@ -734,6 +749,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const delegateFilter = document.getElementById('delegate-filter').value;
 
             container.innerHTML = '';
+            
+            // Add header row
+            const headerRow = document.createElement('div');
+            headerRow.className = 'series-list-header';
+            
+            const headers = ['ID', 'Author', 'Title', 'Age', 'Score', 'State', 'Reviews', 'Checks', ''];
+            headers.forEach(headerText => {
+                const headerCell = document.createElement('div');
+                headerCell.textContent = headerText;
+                headerRow.appendChild(headerCell);
+            });
+            
+            container.appendChild(headerRow);
+            
             let visibleCount = 0;
 
             seriesData.forEach(series => {
@@ -1108,13 +1137,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const days = Math.floor(hours / 24);
 
             if (days > 0) {
-                return `${days}d ago`;
+                // Show both days and hours, e.g., "2d 5h"
+                const remainingHours = hours % 24;
+                if (remainingHours > 0) {
+                    return `${days}d ${remainingHours}h`;
+                }
+                return `${days}d`;
             } else if (hours > 0) {
-                return `${hours}h ago`;
+                return `${hours}h`;
             } else if (minutes > 0) {
-                return `${minutes}m ago`;
+                return `${minutes}m`;
             } else {
-                return 'just now';
+                return 'now';
             }
         }
 

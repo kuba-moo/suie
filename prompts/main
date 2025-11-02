@@ -118,3 +118,5 @@ You got the coloring of the reviewers at patch level backwards. Make the reviews
 The Lore links are still missing. They only show up in the patches. Try to load them from cover letter (if the series has one) and the first patch if cover letter doesn't exist.
 
 There's a major problem with the reviewer summarization at the series level. The reviews which came in via comments after the series was posted do not show up there at all.
+
+Add some column names, first column with the links and IDs can be called ID. Second Author, third Title, fourth age, fifth score, sixth state, sevent reviews, eight checks. While at it please reformat the age column a little bit, remove the "ago" and make sure that we display hours even for series which are older than a day.
