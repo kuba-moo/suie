@@ -76,6 +76,10 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
 
 ### UI Features:
 
+- **Dark Mode**: Toggle between light and dark themes
+  - Automatically detects system preference on first load
+  - Preference saved in browser's localStorage
+  - Smooth transition animations
 - **Series View**: Shows series ID, author, title, age, assigned delegates, and check status
   - Check status aggregated across all patches (per check type):
     - **Missing**: If any patch is missing the check

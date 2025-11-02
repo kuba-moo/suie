@@ -70,6 +70,46 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Suie - Patch Review Queue</title>
     <style>
+        :root {
+            /* Light mode colors */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --bg-hover: #f6f8fa;
+            --text-primary: #24292e;
+            --text-secondary: #586069;
+            --text-link: #0366d6;
+            --border-color: #e1e4e8;
+            --border-input: #d1d5da;
+            --shadow: rgba(0,0,0,0.1);
+        }
+
+        [data-theme="dark"] {
+            /* Dark mode colors */
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-hover: #1c2128;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --text-link: #58a6ff;
+            --border-color: #30363d;
+            --border-input: #30363d;
+            --shadow: rgba(0,0,0,0.3);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg-primary: #0d1117;
+                --bg-secondary: #161b22;
+                --bg-hover: #1c2128;
+                --text-primary: #c9d1d9;
+                --text-secondary: #8b949e;
+                --text-link: #58a6ff;
+                --border-color: #30363d;
+                --border-input: #30363d;
+                --shadow: rgba(0,0,0,0.3);
+            }
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -80,9 +120,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             font-size: 14px;
             line-height: 1.5;
-            color: #24292e;
-            background-color: #f6f8fa;
+            color: var(--text-primary);
+            background-color: var(--bg-secondary);
             padding: 20px;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         .container {
@@ -91,11 +132,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         header {
-            background: white;
+            background: var(--bg-primary);
             padding: 20px;
             margin-bottom: 20px;
             border-radius: 6px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px var(--shadow);
         }
 
         h1 {
@@ -123,9 +164,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         select, input[type="checkbox"] {
             padding: 6px 10px;
-            border: 1px solid #d1d5da;
+            border: 1px solid var(--border-input);
             border-radius: 6px;
-            background: white;
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
 
         input[type="checkbox"] {
@@ -134,20 +176,35 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             cursor: pointer;
         }
 
-        .series-list {
-            background: white;
+        button {
+            padding: 6px 12px;
+            border: 1px solid var(--border-input);
             border-radius: 6px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 13px;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.8;
+        }
+
+        .series-list {
+            background: var(--bg-primary);
+            border-radius: 6px;
+            box-shadow: 0 1px 3px var(--shadow);
         }
 
         .series-row {
-            border-bottom: 1px solid #e1e4e8;
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: background-color 0.2s;
         }
 
         .series-row:hover {
-            background-color: #f6f8fa;
+            background-color: var(--bg-hover);
         }
 
         .series-row.inactive {
@@ -168,11 +225,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .series-id {
             font-weight: 600;
-            color: #0366d6;
+            color: var(--text-link);
         }
 
         .series-author {
-            color: #586069;
+            color: var(--text-secondary);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -185,7 +242,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .series-age {
-            color: #586069;
+            color: var(--text-secondary);
             font-size: 13px;
         }
 
@@ -260,8 +317,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .patches-container {
             display: none;
-            background-color: #fafbfc;
-            border-top: 1px solid #e1e4e8;
+            background-color: var(--bg-hover);
+            border-top: 1px solid var(--border-color);
         }
 
         .series-row.expanded .patches-container {
@@ -270,7 +327,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .patch-row {
             padding: 10px 20px 10px 60px;
-            border-bottom: 1px solid #e1e4e8;
+            border-bottom: 1px solid var(--border-color);
             display: grid;
             grid-template-columns: 1fr 100px 200px 150px;
             gap: 15px;
@@ -286,23 +343,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .patch-score {
-            color: #586069;
+            color: var(--text-secondary);
             font-size: 12px;
         }
 
         .score-comments {
             font-size: 11px;
-            color: #6a737d;
+            color: var(--text-secondary);
             margin-top: 4px;
         }
 
         .stats {
             margin-top: 10px;
             padding: 10px;
-            background: #f6f8fa;
+            background: var(--bg-hover);
             border-radius: 6px;
             font-size: 13px;
-            color: #586069;
+            color: var(--text-secondary);
         }
 
         @media (max-width: 1000px) {
@@ -337,6 +394,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         {% endfor %}
                     </select>
                 </div>
+                <div class="control-group">
+                    <button id="theme-toggle" title="Toggle dark mode">🌓</button>
+                </div>
             </div>
         </header>
 
@@ -352,6 +412,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         // Initialize UI
         document.addEventListener('DOMContentLoaded', () => {
+            initializeTheme();
             initializeUI();
             loadFiltersFromURL();
             renderSeries();
@@ -360,7 +421,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Event listeners
             document.getElementById('hide-inactive').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
+            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
         });
+
+        function initializeTheme() {
+            // Load theme preference from localStorage or use system preference
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            } else if (systemPrefersDark) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
 
         function initializeUI() {
             // Display generated time with relative time
