@@ -43,8 +43,8 @@ class DeveloperDatabase:
             db_path: Path to the JSON file with mailmap and corpmap
             stats_path: Path to the JSON file with developer statistics
         """
-        self.mailmap: Dict[str, str] = {}  # email -> canonical identity
-        self.corpmap: Dict[str, str] = {}  # email pattern -> company
+        self.mailmap_list: List[List[str]] = []  # list of [pattern, canonical]
+        self.corpmap_list: List[List[str]] = []  # list of [pattern, company]
         self.stats: Dict = {}  # developer statistics
 
         if db_path:
@@ -59,15 +59,30 @@ class DeveloperDatabase:
                 data = json.load(f)
 
             # Load mailmap: list of [pattern, canonical]
-            for pattern, canonical in data.get('mailmap', []):
-                self.mailmap[pattern.strip('<>')] = canonical
-
+            self.mailmap_list = data.get('mailmap', [])
+            
             # Load corpmap: list of [email_pattern, company]
-            for pattern, company in data.get('corpmap', []):
-                self.corpmap[pattern] = company
+            # And extend it with mailmap mappings (like ml-stat.py does)
+            self.corpmap_list = data.get('corpmap', []).copy()
+            
+            # For each mailmap entry, add corpmap entries for the source too
+            # This mirrors lines 742-744 in ml-stat.py
+            for mailmap_entry in self.mailmap_list:
+                mailmap_pattern = mailmap_entry[0]
+                mailmap_target = mailmap_entry[1]
+                
+                # Check if any corpmap pattern matches the mailmap TARGET
+                for corpmap_entry in data.get('corpmap', []):
+                    corp_pattern = corpmap_entry[0]
+                    company = corpmap_entry[1]
+                    
+                    if corp_pattern in mailmap_target:
+                        # Add mapping for the mailmap SOURCE too
+                        self.corpmap_list.append([mailmap_pattern, company])
 
-            logger.info("Loaded %d mailmap entries and %d corpmap entries",
-                       len(self.mailmap), len(self.corpmap))
+            logger.info("Loaded %d mailmap entries and %d corpmap entries (expanded to %d)",
+                       len(self.mailmap_list), len(data.get('corpmap', [])), 
+                       len(self.corpmap_list))
         except Exception as e:
             logger.error("Failed to load database from %s: %s", db_path, e)
 
@@ -81,42 +96,66 @@ class DeveloperDatabase:
         except Exception as e:
             logger.error("Failed to load stats from %s: %s", stats_path, e)
 
+    def _apply_mapping(self, identity: str, mapping_list: List[List[str]]) -> str:
+        """
+        Apply a mapping list to an identity, similar to get_from_mapped() in ml-stat.py
+        
+        Args:
+            identity: Identity string (e.g., email or "Name <email>")
+            mapping_list: List of [pattern, target] pairs
+            
+        Returns:
+            Mapped identity or original if no match
+        """
+        # Ensure identity has angle brackets for consistent matching
+        if '<' not in identity:
+            identity = '<' + identity + '>'
+        
+        # Remove quotes for matching
+        identity = identity.replace('"', "")
+        
+        # Apply all mappings in sequence
+        for mapping_entry in mapping_list:
+            pattern = mapping_entry[0]
+            target = mapping_entry[1]
+            
+            if pattern in identity:
+                return target
+        
+        return identity
+
     def get_canonical_identity(self, email: str) -> str:
         """
-        Get the canonical identity for an email
-
+        Get the canonical identity for an email.
+        Follows the same logic as get_from_mapped() in ml-stat.py
+        
         Args:
             email: Email address
-
+            
         Returns:
             Canonical identity or original email if not in mailmap
         """
-        # Try exact match first
-        if email in self.mailmap:
-            return self.mailmap[email]
-
-        # Try pattern matching
-        for pattern, canonical in self.mailmap.items():
-            if pattern in email:
-                return canonical
-
-        return email
+        return self._apply_mapping(email, self.mailmap_list)
 
     def get_company(self, email: str) -> Optional[str]:
         """
-        Get the company for an email address
-
+        Get the company for an email address.
+        First applies mailmap, then applies corpmap to the result.
+        
         Args:
             email: Email address
-
+            
         Returns:
             Company name or None if not found
         """
-        # Try exact match first
-        for pattern, company in self.corpmap.items():
-            if pattern in email:
+        # First get canonical identity
+        canonical = self.get_canonical_identity(email)
+        
+        # Then apply corpmap
+        for pattern, company in self.corpmap_list:
+            if pattern in canonical or pattern in email:
                 return company
-
+        
         return None
 
     def _find_in_stats(self, email: str) -> Optional[str]:
