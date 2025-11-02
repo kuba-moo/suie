@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List
 
 import yaml
@@ -172,6 +172,10 @@ class SuieApp:
         if cover_letter:
             cover_comments = self.state.get_cover_comments(cover_letter["id"])
 
+        # Calculate age excluding weekends
+        date_normalized = self._normalize_date(series.get("date", ""))
+        age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
+
         # Score the series
         expected_checks = self.config["ui"].get("expected_checks", [])
         return self.scoring_engine.score_series(
@@ -182,6 +186,8 @@ class SuieApp:
             cover_letter,
             cover_comments,
             expected_checks,
+            age_breakdown["weekday_hours"],
+            age_breakdown["weekend_hours"],
         )
 
     @staticmethod
@@ -438,6 +444,78 @@ class SuieApp:
         except (ValueError, AttributeError) as e:
             logger.warning("Failed to parse date '%s': %s", date_str, e)
             return date_str  # Return as-is if we can't parse it
+
+    @staticmethod
+    def _calculate_age_excluding_weekends(date_str: str) -> Dict[str, float]:
+        """
+        Calculate the age of a series excluding weekend time.
+
+        For simplicity, assumes only a single weekend overlap.
+        Saturday (5) and Sunday (6) are considered weekend days.
+
+        Args:
+            date_str: ISO 8601 date string with timezone
+
+        Returns:
+            Dictionary with:
+                - weekday_hours: Hours elapsed during weekdays
+                - weekend_hours: Hours elapsed during weekend
+                - total_hours: Total hours elapsed
+        """
+        if not date_str:
+            return {"weekday_hours": 0, "weekend_hours": 0, "total_hours": 0}
+
+        try:
+            # Parse the date
+            if date_str.endswith("Z"):
+                posted_dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            else:
+                posted_dt = datetime.fromisoformat(date_str)
+
+            # Get current time in UTC
+            now_dt = datetime.now(timezone.utc)
+
+            # Calculate total elapsed time
+            total_elapsed = now_dt - posted_dt
+            total_hours = total_elapsed.total_seconds() / 3600
+
+            # Find weekend hours
+            # For simplicity, assume only one weekend overlap
+            weekend_hours = 0
+            weekday_hours = total_hours
+
+            # Iterate through each hour to determine if it falls on weekend
+            # This is simple but not the most efficient - good enough for one weekend
+            current = posted_dt
+            while current < now_dt:
+                # Check if current time is on weekend (Saturday=5, Sunday=6)
+                weekday = current.weekday()
+                if weekday >= 5:  # Saturday or Sunday
+                    # Calculate how much of the next hour is in our range
+                    next_hour = current + timedelta(hours=1)
+                    if next_hour > now_dt:
+                        # Partial hour at the end
+                        fraction = (now_dt - current).total_seconds() / 3600
+                        weekend_hours += fraction
+                    else:
+                        weekend_hours += 1
+
+                current += timedelta(hours=1)
+                if current > now_dt:
+                    break
+
+            # Calculate weekday hours
+            weekday_hours = total_hours - weekend_hours
+
+            return {
+                "weekday_hours": max(0, weekday_hours),
+                "weekend_hours": max(0, weekend_hours),
+                "total_hours": total_hours
+            }
+
+        except (ValueError, AttributeError) as e:
+            logger.warning("Failed to calculate age for date '%s': %s", date_str, e)
+            return {"weekday_hours": 0, "weekend_hours": 0, "total_hours": 0}
 
     @staticmethod
     def _deduplicate_checks(checks: List[Dict]) -> Dict[str, Dict]:
@@ -781,11 +859,18 @@ class SuieApp:
                 if first_patch:
                     lore_url = first_patch.get("list_archive_url")
 
+        # Calculate age excluding weekends
+        date_normalized = self._normalize_date(series.get("date", ""))
+        age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
+
         return {
             "id": series["id"],
             "title": series.get("name") or "No title",
             "author": author_name,
-            "date": self._normalize_date(series.get("date", "")),
+            "date": date_normalized,
+            "age_weekday_hours": age_breakdown["weekday_hours"],
+            "age_weekend_hours": age_breakdown["weekend_hours"],
+            "age_total_hours": age_breakdown["total_hours"],
             "score": series_score.score,
             "is_inactive": is_inactive,
             "state": series_state,

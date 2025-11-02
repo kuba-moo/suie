@@ -166,7 +166,9 @@ class ScoringContext:
     def __init__(self, patch: Dict, series: Dict, all_patches: List[Dict],
                  checks: List[Dict], comments: List[Dict], cover_letter: Optional[Dict],
                  cover_comments: List[Dict], dev_db: DeveloperDatabase,
-                 expected_checks: Optional[List[str]] = None):
+                 expected_checks: Optional[List[str]] = None,
+                 series_age_weekday_hours: float = 0,
+                 series_age_weekend_hours: float = 0):
         """
         Initialize the scoring context
 
@@ -180,6 +182,8 @@ class ScoringContext:
             cover_comments: Comments on the cover letter
             dev_db: Developer database
             expected_checks: List of expected check names from configuration
+            series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
+            series_age_weekend_hours: Age of series in weekend hours
         """
         self.patch = patch
         self.series = series
@@ -189,6 +193,11 @@ class ScoringContext:
         self.cover_letter = cover_letter
         self.cover_comments = cover_comments
         self.dev_db = dev_db
+
+        # Age information for the series
+        self.series_age_weekday_hours = series_age_weekday_hours
+        self.series_age_weekend_hours = series_age_weekend_hours
+        self.series_age_total_hours = series_age_weekday_hours + series_age_weekend_hours
 
         # Initialize attributes
         self.review_tags = []  # List of (tag_type, email) tuples
@@ -415,7 +424,9 @@ class ScoringEngine:
 
     def score_patch(self, patch: Dict, series: Dict, all_patches: List[Dict],
                    checks: List[Dict], comments: List[Dict], cover_letter: Optional[Dict],
-                   cover_comments: List[Dict], expected_checks: Optional[List[str]] = None) -> PatchScore:
+                   cover_comments: List[Dict], expected_checks: Optional[List[str]] = None,
+                   series_age_weekday_hours: float = 0,
+                   series_age_weekend_hours: float = 0) -> PatchScore:
         """
         Score a single patch
 
@@ -428,12 +439,15 @@ class ScoringEngine:
             cover_letter: Cover letter (if any)
             cover_comments: Comments on cover letter
             expected_checks: List of expected check names from configuration
+            series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
+            series_age_weekend_hours: Age of series in weekend hours
 
         Returns:
             PatchScore object
         """
         context = ScoringContext(patch, series, all_patches, checks, comments,
-                               cover_letter, cover_comments, self.dev_db, expected_checks)
+                               cover_letter, cover_comments, self.dev_db, expected_checks,
+                               series_age_weekday_hours, series_age_weekend_hours)
 
         # Create a score object that the scoring function can populate
         patch_score = PatchScore(patch_id=patch['id'], score=0.0)
@@ -455,7 +469,9 @@ class ScoringEngine:
 
     def score_series(self, series: Dict, patches: List[Dict], checks_map: Dict[int, List[Dict]],
                     comments_map: Dict[int, List[Dict]], cover_letter: Optional[Dict],
-                    cover_comments: List[Dict], expected_checks: Optional[List[str]] = None) -> SeriesScore:
+                    cover_comments: List[Dict], expected_checks: Optional[List[str]] = None,
+                    series_age_weekday_hours: float = 0,
+                    series_age_weekend_hours: float = 0) -> SeriesScore:
         """
         Score a series (score is the maximum of all patch scores)
 
@@ -467,6 +483,8 @@ class ScoringEngine:
             cover_letter: Cover letter (if any)
             cover_comments: Comments on cover letter
             expected_checks: List of expected check names from configuration
+            series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
+            series_age_weekend_hours: Age of series in weekend hours
 
         Returns:
             SeriesScore object
@@ -480,7 +498,8 @@ class ScoringEngine:
             comments = comments_map.get(patch_id, [])
 
             patch_score = self.score_patch(patch, series, patches, checks, comments,
-                                          cover_letter, cover_comments, expected_checks)
+                                          cover_letter, cover_comments, expected_checks,
+                                          series_age_weekday_hours, series_age_weekend_hours)
             series_score.patch_scores.append(patch_score)
 
         # Series score is the maximum (worst) patch score

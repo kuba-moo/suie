@@ -856,10 +856,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             titleEl.title = series.title;
             header.appendChild(titleEl);
 
-            // Age
+            // Age (with weekend time on separate line)
             const ageEl = document.createElement('div');
             ageEl.className = 'series-age';
-            ageEl.textContent = formatRelativeTime(new Date(series.date));
+            ageEl.style.display = 'flex';
+            ageEl.style.flexDirection = 'column';
+            ageEl.style.gap = '2px';
+
+            const ageFormat = formatAgeWithWeekend(series.age_weekday_hours, series.age_weekend_hours);
+            const mainAgeEl = document.createElement('div');
+            mainAgeEl.textContent = ageFormat.main;
+            ageEl.appendChild(mainAgeEl);
+
+            if (ageFormat.weekend) {
+                const weekendAgeEl = document.createElement('div');
+                weekendAgeEl.textContent = ageFormat.weekend;
+                weekendAgeEl.style.fontSize = '11px';
+                weekendAgeEl.style.color = 'var(--text-secondary)';
+                weekendAgeEl.style.opacity = '0.7';
+                ageEl.appendChild(weekendAgeEl);
+            }
+
             header.appendChild(ageEl);
 
             // Score
@@ -1180,6 +1197,48 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }
 
             return result;
+        }
+
+        function formatTimeAsHours(hours) {
+            // Format hours as "Xd Yh" or "Xh" or "Xm"
+            const h = Math.floor(hours);
+            const days = Math.floor(h / 24);
+            const remainingHours = h % 24;
+            const minutes = Math.floor((hours - h) * 60);
+
+            if (days > 0) {
+                if (remainingHours > 0) {
+                    return `${days}d ${remainingHours}h`;
+                }
+                return `${days}d`;
+            } else if (h > 0) {
+                return `${h}h`;
+            } else if (minutes > 0) {
+                return `${minutes}m`;
+            } else {
+                return 'now';
+            }
+        }
+
+        function formatAgeWithWeekend(weekdayHours, weekendHours) {
+            // Format age as "23h (+2d)" where first part is weekday time
+            // and part in brackets is weekend time
+            // Returns {main: "23h", weekend: "(+2d)"} or {main: "23h", weekend: ""}
+
+            const mainTime = formatTimeAsHours(weekdayHours);
+
+            if (weekendHours > 0.1) {  // Only show weekend if significant (> ~6 minutes)
+                const weekendTime = formatTimeAsHours(weekendHours);
+                return {
+                    main: mainTime,
+                    weekend: `(+${weekendTime})`
+                };
+            } else {
+                return {
+                    main: mainTime,
+                    weekend: ''
+                };
+            }
         }
 
         function updateStats() {
