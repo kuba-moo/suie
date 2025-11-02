@@ -73,7 +73,9 @@ def score_patch(context, patch_score):
     # Check 2: Author reputation affects score
     author_score = context.get_author_reviewer_score()
 
-    if author_score < 0:
+    # Give everyone a credit of 40, most occasional posters will be slightly
+    # in the red on review scores.
+    if author_score < -40:
         score += 12
         patch_score.add_comment(f"Author score negative ({author_score})")
 
@@ -100,8 +102,25 @@ def score_patch(context, patch_score):
         score += 24 - 12 * min(len(external_reviews), 2)
         patch_score.add_comment(f"{len(external_reviews)} reviews")
 
+    # Check 5: Fresh comments:
+    since_comment = context.time_since_last_comment_hours
+    if since_comment is None:
+        since_comment = 999
+
+    if score < 48 and since_comment <= 6:
+        score += (6 - context.time_since_last_comment_hours)
+        score = min(score, 48)
+        patch_score.add_comment("Recent comments/review")
+    elif since_comment <= 2:
+        score += (2 - context.time_since_last_comment_hours)
+        patch_score.add_comment("Recent comments/review")
+
     # Check 6: Comment threads
     if context.review_comments_present:
+        patch_score.add_comment("Review comments")
         score += 48
+
+    # Final: account for time spent
+    score -= context.series_age_weekday_hours
 
     return score

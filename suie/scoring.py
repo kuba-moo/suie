@@ -60,28 +60,28 @@ class DeveloperDatabase:
 
             # Load mailmap: list of [pattern, canonical]
             self.mailmap_list = data.get('mailmap', [])
-            
+
             # Load corpmap: list of [email_pattern, company]
             # And extend it with mailmap mappings (like ml-stat.py does)
             self.corpmap_list = data.get('corpmap', []).copy()
-            
+
             # For each mailmap entry, add corpmap entries for the source too
             # This mirrors lines 742-744 in ml-stat.py
             for mailmap_entry in self.mailmap_list:
                 mailmap_pattern = mailmap_entry[0]
                 mailmap_target = mailmap_entry[1]
-                
+
                 # Check if any corpmap pattern matches the mailmap TARGET
                 for corpmap_entry in data.get('corpmap', []):
                     corp_pattern = corpmap_entry[0]
                     company = corpmap_entry[1]
-                    
+
                     if corp_pattern in mailmap_target:
                         # Add mapping for the mailmap SOURCE too
                         self.corpmap_list.append([mailmap_pattern, company])
 
             logger.info("Loaded %d mailmap entries and %d corpmap entries (expanded to %d)",
-                       len(self.mailmap_list), len(data.get('corpmap', [])), 
+                       len(self.mailmap_list), len(data.get('corpmap', [])),
                        len(self.corpmap_list))
         except Exception as e:
             logger.error("Failed to load database from %s: %s", db_path, e)
@@ -99,39 +99,39 @@ class DeveloperDatabase:
     def _apply_mapping(self, identity: str, mapping_list: List[List[str]]) -> str:
         """
         Apply a mapping list to an identity, similar to get_from_mapped() in ml-stat.py
-        
+
         Args:
             identity: Identity string (e.g., email or "Name <email>")
             mapping_list: List of [pattern, target] pairs
-            
+
         Returns:
             Mapped identity or original if no match
         """
         # Ensure identity has angle brackets for consistent matching
         if '<' not in identity:
             identity = '<' + identity + '>'
-        
+
         # Remove quotes for matching
         identity = identity.replace('"', "")
-        
+
         # Apply all mappings in sequence
         for mapping_entry in mapping_list:
             pattern = mapping_entry[0]
             target = mapping_entry[1]
-            
+
             if pattern in identity:
                 return target
-        
+
         return identity
 
     def get_canonical_identity(self, email: str) -> str:
         """
         Get the canonical identity for an email.
         Follows the same logic as get_from_mapped() in ml-stat.py
-        
+
         Args:
             email: Email address
-            
+
         Returns:
             Canonical identity or original email if not in mailmap
         """
@@ -141,41 +141,41 @@ class DeveloperDatabase:
         """
         Get the company for an email address.
         First applies mailmap, then applies corpmap to the result.
-        
+
         Args:
             email: Email address
-            
+
         Returns:
             Company name or None if not found
         """
         # First get canonical identity
         canonical = self.get_canonical_identity(email)
-        
+
         # Then apply corpmap
         for pattern, company in self.corpmap_list:
             if pattern in canonical or pattern in email:
                 return company
-        
+
         return None
 
     def _find_in_stats(self, email: str) -> Optional[str]:
         """
         Find an individual in stats by email.
         Stats keys are in "Name <email>" format, but we might only have the email.
-        
+
         Args:
             email: Email address to search for
-            
+
         Returns:
             The stats key if found, None otherwise
         """
         individual_stats = self.stats.get('individual', {})
-        
+
         # First try canonical identity (might be "Name <email>" if in mailmap)
         canonical = self.get_canonical_identity(email)
         if canonical in individual_stats:
             return canonical
-        
+
         # If not found, try matching by email within the keys
         # Stats keys are in "Name <email>" format
         for key in individual_stats:
@@ -186,7 +186,7 @@ class DeveloperDatabase:
             # Also try direct match if key is just an email
             if key == email:
                 return key
-        
+
         return None
 
     def get_reviewer_score(self, email: str) -> float:
@@ -201,7 +201,7 @@ class DeveloperDatabase:
         """
         individual_stats = self.stats.get('individual', {})
         stats_key = self._find_in_stats(email)
-        
+
         if stats_key:
             score_data = individual_stats[stats_key].get('score', {})
             return score_data.get('positive', 0)
@@ -238,7 +238,8 @@ class ScoringContext:
                  cover_comments: List[Dict], dev_db: DeveloperDatabase,
                  expected_checks: Optional[List[str]] = None,
                  series_age_weekday_hours: float = 0,
-                 series_age_weekend_hours: float = 0):
+                 series_age_weekend_hours: float = 0,
+                 time_since_last_comment_hours: Optional[float] = None):
         """
         Initialize the scoring context
 
@@ -254,6 +255,7 @@ class ScoringContext:
             expected_checks: List of expected check names from configuration
             series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
             series_age_weekend_hours: Age of series in weekend hours
+            time_since_last_comment_hours: Hours since most recent comment (None if no comments)
         """
         self.patch = patch
         self.series = series
@@ -268,6 +270,9 @@ class ScoringContext:
         self.series_age_weekday_hours = series_age_weekday_hours
         self.series_age_weekend_hours = series_age_weekend_hours
         self.series_age_total_hours = series_age_weekday_hours + series_age_weekend_hours
+
+        # Time since last comment
+        self.time_since_last_comment_hours = time_since_last_comment_hours
 
         # Initialize attributes
         self.review_tags = []  # List of (tag_type, email) tuples
@@ -497,7 +502,8 @@ class ScoringEngine:
                    checks: List[Dict], comments: List[Dict], cover_letter: Optional[Dict],
                    cover_comments: List[Dict], expected_checks: Optional[List[str]] = None,
                    series_age_weekday_hours: float = 0,
-                   series_age_weekend_hours: float = 0) -> PatchScore:
+                   series_age_weekend_hours: float = 0,
+                   time_since_last_comment_hours: Optional[float] = None) -> PatchScore:
         """
         Score a single patch
 
@@ -518,7 +524,8 @@ class ScoringEngine:
         """
         context = ScoringContext(patch, series, all_patches, checks, comments,
                                cover_letter, cover_comments, self.dev_db, expected_checks,
-                               series_age_weekday_hours, series_age_weekend_hours)
+                               series_age_weekday_hours, series_age_weekend_hours,
+                               time_since_last_comment_hours)
 
         # Create a score object that the scoring function can populate
         patch_score = PatchScore(patch_id=patch['id'], score=0.0)
@@ -542,7 +549,8 @@ class ScoringEngine:
                     comments_map: Dict[int, List[Dict]], cover_letter: Optional[Dict],
                     cover_comments: List[Dict], expected_checks: Optional[List[str]] = None,
                     series_age_weekday_hours: float = 0,
-                    series_age_weekend_hours: float = 0) -> SeriesScore:
+                    series_age_weekend_hours: float = 0,
+                    time_since_last_comment_hours: Optional[float] = None) -> SeriesScore:
         """
         Score a series (score is the maximum of all patch scores)
 
@@ -556,6 +564,7 @@ class ScoringEngine:
             expected_checks: List of expected check names from configuration
             series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
             series_age_weekend_hours: Age of series in weekend hours
+            time_since_last_comment_hours: Hours since most recent comment (None if no comments)
 
         Returns:
             SeriesScore object
@@ -570,7 +579,8 @@ class ScoringEngine:
 
             patch_score = self.score_patch(patch, series, patches, checks, comments,
                                           cover_letter, cover_comments, expected_checks,
-                                          series_age_weekday_hours, series_age_weekend_hours)
+                                          series_age_weekday_hours, series_age_weekend_hours,
+                                          time_since_last_comment_hours)
             series_score.patch_scores.append(patch_score)
 
         # Series score is the maximum (worst) patch score

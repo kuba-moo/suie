@@ -6,7 +6,7 @@ import re
 import sys
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import yaml
 
@@ -177,6 +177,11 @@ class SuieApp:
         date_normalized = self._normalize_date(series.get("date", ""))
         age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
 
+        # Calculate time since most recent comment
+        time_since_last_comment_hours = self._calculate_time_since_last_comment(
+            comments_map, cover_comments
+        )
+
         # Score the series
         expected_checks = self.config["ui"].get("expected_checks", [])
         return self.scoring_engine.score_series(
@@ -189,6 +194,7 @@ class SuieApp:
             expected_checks,
             age_breakdown["weekday_hours"],
             age_breakdown["weekend_hours"],
+            time_since_last_comment_hours,
         )
 
     def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int) -> List[str]:
@@ -231,7 +237,7 @@ class SuieApp:
 
             if name:
                 commenters.add(name)
-                
+
                 # Log if commenter is not in ml-stats
                 email = submitter.get('email') or ''
                 if email:
@@ -493,6 +499,81 @@ class SuieApp:
             return date_str  # Return as-is if we can't parse it
 
     @staticmethod
+    def _calculate_time_since_last_comment(comments_map: Dict[int, List[Dict]],
+                                           cover_comments: List[Dict]) -> Optional[float]:
+        """
+        Calculate the time in hours since the most recent comment.
+
+        Args:
+            comments_map: Map of patch_id -> comments
+            cover_comments: Comments on the cover letter
+
+        Returns:
+            Hours since most recent comment, or None if no comments
+        """
+        most_recent_date = None
+
+        # Check all patch comments
+        for comments in comments_map.values():
+            for comment in comments:
+                date_str = comment.get('date')
+                if not date_str:
+                    continue
+
+                try:
+                    # Parse the date - ensure it's timezone-aware
+                    if date_str.endswith("Z"):
+                        comment_dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    elif "+" in date_str or date_str.endswith("-00:00"):
+                        # Already has timezone info
+                        comment_dt = datetime.fromisoformat(date_str)
+                    else:
+                        # No timezone info - assume UTC (Patchwork always returns UTC)
+                        comment_dt = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+
+                    # Track most recent
+                    if most_recent_date is None or comment_dt > most_recent_date:
+                        most_recent_date = comment_dt
+
+                except (ValueError, AttributeError):
+                    continue
+
+        # Check cover letter comments
+        for comment in cover_comments:
+            date_str = comment.get('date')
+            if not date_str:
+                continue
+
+            try:
+                # Parse the date - ensure it's timezone-aware
+                if date_str.endswith("Z"):
+                    comment_dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                elif "+" in date_str or date_str.endswith("-00:00"):
+                    # Already has timezone info
+                    comment_dt = datetime.fromisoformat(date_str)
+                else:
+                    # No timezone info - assume UTC (Patchwork always returns UTC)
+                    comment_dt = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+
+                # Track most recent
+                if most_recent_date is None or comment_dt > most_recent_date:
+                    most_recent_date = comment_dt
+
+            except (ValueError, AttributeError):
+                continue
+
+        # If no comments found, return None
+        if most_recent_date is None:
+            return None
+
+        # Calculate time since most recent comment
+        now_dt = datetime.now(timezone.utc)
+        time_since = now_dt - most_recent_date
+        hours_since = time_since.total_seconds() / 3600
+
+        return hours_since
+
+    @staticmethod
     def _calculate_age_excluding_weekends(date_str: str) -> Dict[str, float]:
         """
         Calculate the age of a series excluding weekend time.
@@ -734,16 +815,16 @@ class SuieApp:
         submitter = series.get("submitter", {})
         author_email = submitter.get("email", "")
         author_name = submitter.get("name", "")
-        
+
         # If name is missing or empty, use email address
         if not author_name or not author_name.strip():
             author_name = author_email if author_email else "Unknown"
-        
+
         author_company = None
-        
+
         if author_email:
             author_company = self.dev_db.get_company(author_email)
-            
+
             # Warn if author is not found in ml-stats
             stats_key = self.dev_db._find_in_stats(author_email)
             if not stats_key:

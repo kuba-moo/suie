@@ -885,7 +885,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             authorEl.style.display = 'flex';
             authorEl.style.flexDirection = 'column';
             authorEl.style.gap = '4px';
-            
+
             const authorNameEl = document.createElement('div');
             authorNameEl.textContent = series.author;
             authorNameEl.title = series.author;
@@ -893,7 +893,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             authorNameEl.style.textOverflow = 'ellipsis';
             authorNameEl.style.whiteSpace = 'nowrap';
             authorEl.appendChild(authorNameEl);
-            
+
             if (series.author_company) {
                 const companyBadge = document.createElement('span');
                 companyBadge.className = 'company-badge';
@@ -901,7 +901,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 companyBadge.title = `Company: ${series.author_company}`;
                 authorEl.appendChild(companyBadge);
             }
-            
+
             header.appendChild(authorEl);
 
             // Title

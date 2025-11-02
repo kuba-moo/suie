@@ -132,3 +132,5 @@ Add a warning to the logs if author of the patches is not found in ml-stats. Add
 Add a chip under the author (separate line but the same column) displaying the company associate of the author.
 
 The company lookup must be done by first consulting mailmap_path. Read /home/kicinski/devel/ml-stat/ml-stat.py to understand how to do it. This file uses the mailmap as "db" and outputs ml-stats. With the understanding of how the ml-stat.py fix all the bugs in the current repo in how stat for individuals and companies are looked up.
+
+Calculate the time since the most recent comment was posted and expose it to the sorting function.
