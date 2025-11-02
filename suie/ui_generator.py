@@ -222,6 +222,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #0366d6;
         }
 
+        .check-passing {
+            background-color: #dcffe4;
+            color: #0e6027;
+            border: 1px solid #34d058;
+        }
+
         .delegate-badge {
             padding: 2px 8px;
             border-radius: 12px;
@@ -448,6 +454,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 checksEl.appendChild(badge);
             });
 
+            // Show passing checks summary
+            if (series.checks_summary.passing > 0) {
+                const passingBadge = document.createElement('span');
+                passingBadge.className = 'check-badge check-passing';
+                passingBadge.textContent = `✓ ${series.checks_summary.passing}`;
+                passingBadge.title = `${series.checks_summary.passing} checks passing`;
+                checksEl.appendChild(passingBadge);
+            }
+
             header.appendChild(checksEl);
 
             // Expand icon
@@ -499,6 +514,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         badge.textContent = check;
                         checksEl.appendChild(badge);
                     });
+                }
+
+                // Show passing checks summary for patch
+                if (patch.checks_passing > 0) {
+                    const passingBadge = document.createElement('span');
+                    passingBadge.className = 'check-badge check-passing';
+                    passingBadge.textContent = `✓ ${patch.checks_passing}`;
+                    passingBadge.title = `${patch.checks_passing} checks passing`;
+                    checksEl.appendChild(passingBadge);
                 }
 
                 patchRow.appendChild(checksEl);

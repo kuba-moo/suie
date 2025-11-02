@@ -184,6 +184,7 @@ class SuieApp:
         # Aggregate check status across all patches
         all_failed_checks = set()
         all_missing_checks = set()
+        all_passing_checks = set()
 
         for patch_score in series_score.patch_scores:
             patch_id = patch_score.patch_id
@@ -195,8 +196,12 @@ class SuieApp:
 
             # Check for failed checks
             for check in checks:
-                if check.get('state') in ['fail', 'warning']:
-                    all_failed_checks.add(check.get('context', 'unknown'))
+                state = check.get('state')
+                context = check.get('context', 'unknown')
+                if state in ['fail', 'warning']:
+                    all_failed_checks.add(context)
+                elif state == 'success':
+                    all_passing_checks.add(context)
 
             # Check for missing checks
             present_checks = {c.get('context') for c in checks}
@@ -214,9 +219,17 @@ class SuieApp:
 
             checks = self.state.get_patch_checks(patch_id)
 
-            # Get failed and missing checks for this patch
-            failed_checks = [c.get('context') for c in checks
-                           if c.get('state') in ['fail', 'warning']]
+            # Get failed, missing, and passing checks for this patch
+            failed_checks = []
+            passing_checks = 0
+            for check in checks:
+                state = check.get('state')
+                context = check.get('context')
+                if state in ['fail', 'warning']:
+                    failed_checks.append(context)
+                elif state == 'success':
+                    passing_checks += 1
+
             present_checks = {c.get('context') for c in checks}
             missing_checks = [c for c in expected_checks if c not in present_checks]
 
@@ -233,6 +246,7 @@ class SuieApp:
                 'score_comments': patch_score.comments,
                 'checks_failed': failed_checks,
                 'checks_missing': missing_checks,
+                'checks_passing': passing_checks,
                 'delegate': delegate
             })
 
@@ -260,7 +274,8 @@ class SuieApp:
             'delegates': delegates_in_series,
             'checks_summary': {
                 'failed': sorted(all_failed_checks),
-                'missing': sorted(all_missing_checks)
+                'missing': sorted(all_missing_checks),
+                'passing': len(all_passing_checks)
             }
         }
 

@@ -77,10 +77,12 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
 ### UI Features:
 
 - **Series View**: Shows series ID, author, title, age, assigned delegates, and check status
+  - Failed/missing checks shown individually for quick identification
+  - Passing checks summarized as "✓ N" to save space
 - **Patch Details**: Expand any series to see individual patches with:
   - Patch name
   - Assigned delegate (if any)
-  - Check results (failed/missing)
+  - Check results (failed/missing shown individually, passing summarized)
   - Score and scoring comments
 - **Filtering**: Filter by delegate to see only series with patches assigned to specific people
 - **Hide Inactive**: Toggle to hide archived or completed series
