@@ -66,12 +66,24 @@ python run.py --config config.yaml --poll-interval 600  # Poll every 10 minutes
 After running, open `output/index.html` in your browser to see:
 
 - List of active series sorted by priority
-- Series metadata (ID, author, title, age)
+- Series metadata (ID, author, title, age, delegates)
+- Delegate badges showing who is assigned to patches
 - Check status (failed/missing checks highlighted)
-- Expandable rows to see individual patches
+- Expandable rows to see individual patches with their delegates
 - Filters for inactive series and delegates
 
 The UI automatically calculates relative timestamps (e.g., "2h ago").
+
+### UI Features:
+
+- **Series View**: Shows series ID, author, title, age, assigned delegates, and check status
+- **Patch Details**: Expand any series to see individual patches with:
+  - Patch name
+  - Assigned delegate (if any)
+  - Check results (failed/missing)
+  - Score and scoring comments
+- **Filtering**: Filter by delegate to see only series with patches assigned to specific people
+- **Hide Inactive**: Toggle to hide archived or completed series
 
 ## Custom Scoring
 

@@ -243,6 +243,12 @@ class SuieApp:
         # Check if series is inactive
         is_inactive = self.state.is_series_inactive(series['id'])
 
+        # Collect unique delegates
+        delegates_in_series = sorted(set(
+            p['delegate'] for p in patches_data
+            if p['delegate']
+        ))
+
         return {
             'id': series['id'],
             'title': series.get('name') or 'No title',
@@ -251,6 +257,7 @@ class SuieApp:
             'score': series_score.score,
             'is_inactive': is_inactive,
             'patches': patches_data,
+            'delegates': delegates_in_series,
             'checks_summary': {
                 'failed': sorted(all_failed_checks),
                 'missing': sorted(all_missing_checks)

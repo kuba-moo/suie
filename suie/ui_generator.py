@@ -161,7 +161,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 80px 150px 1fr 100px 200px 30px;
+            grid-template-columns: 80px 150px 1fr 100px 120px 200px 30px;
             gap: 15px;
             align-items: center;
         }
@@ -222,6 +222,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #0366d6;
         }
 
+        .delegate-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #e1e4e8;
+            color: #24292e;
+        }
+
         .expand-icon {
             transition: transform 0.2s;
             font-size: 18px;
@@ -246,7 +255,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 10px 20px 10px 60px;
             border-bottom: 1px solid #e1e4e8;
             display: grid;
-            grid-template-columns: 1fr 200px 150px;
+            grid-template-columns: 1fr 100px 200px 150px;
             gap: 15px;
             align-items: center;
         }
@@ -281,7 +290,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         @media (max-width: 1000px) {
             .series-header {
-                grid-template-columns: 60px 120px 1fr 80px 150px 30px;
+                grid-template-columns: 60px 120px 1fr 80px 100px 130px 30px;
                 gap: 10px;
                 font-size: 13px;
             }
@@ -405,6 +414,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             ageEl.textContent = formatRelativeTime(new Date(series.date));
             header.appendChild(ageEl);
 
+            // Delegates
+            const delegatesEl = document.createElement('div');
+            delegatesEl.className = 'series-checks';
+            if (series.delegates && series.delegates.length > 0) {
+                series.delegates.forEach(delegate => {
+                    const badge = document.createElement('span');
+                    badge.className = 'delegate-badge';
+                    badge.textContent = delegate;
+                    badge.title = `Delegate: ${delegate}`;
+                    delegatesEl.appendChild(badge);
+                });
+            }
+            header.appendChild(delegatesEl);
+
             // Checks
             const checksEl = document.createElement('div');
             checksEl.className = 'series-checks';
@@ -445,6 +468,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 nameEl.className = 'patch-name';
                 nameEl.textContent = patch.name;
                 patchRow.appendChild(nameEl);
+
+                // Delegate badge
+                const delegateEl = document.createElement('div');
+                if (patch.delegate) {
+                    const delegateBadge = document.createElement('span');
+                    delegateBadge.className = 'delegate-badge';
+                    delegateBadge.textContent = patch.delegate;
+                    delegateBadge.title = `Delegate: ${patch.delegate}`;
+                    delegateEl.appendChild(delegateBadge);
+                }
+                patchRow.appendChild(delegateEl);
 
                 const checksEl = document.createElement('div');
                 checksEl.className = 'series-checks';
