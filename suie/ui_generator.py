@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Optional
 from jinja2 import Template
 
@@ -41,7 +41,7 @@ class UIGenerator:
             'delegates': delegates,
             'hide_inactive_default': self.hide_inactive_default,
             'expected_checks': self.expected_checks,
-            'generated_at': datetime.utcnow().isoformat() + 'Z'
+            'generated_at': datetime.now(timezone.utc).isoformat()
         }
 
         # Generate HTML
@@ -490,6 +490,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <script>
         // Data embedded from Python
+        // All dates are in ISO 8601 format with UTC timezone (from Patchwork API)
         const seriesData = {{ series_list | tojson }};
         const generatedAt = "{{ generated_at }}";
 
@@ -816,6 +817,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         function formatRelativeTime(date) {
+            // Date objects store time as milliseconds since epoch (timezone-agnostic)
+            // So this comparison works correctly regardless of user's local timezone
             const now = new Date();
             const diff = now - date;
             const seconds = Math.floor(diff / 1000);

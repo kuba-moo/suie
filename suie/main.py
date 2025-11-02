@@ -4,6 +4,7 @@ import argparse
 import logging
 import sys
 import time
+from datetime import datetime, timezone
 from typing import Dict, List
 
 import yaml
@@ -178,6 +179,39 @@ class SuieApp:
         )
 
     @staticmethod
+    def _normalize_date(date_str: str) -> str:
+        """
+        Normalize a date string to ISO 8601 format with UTC timezone.
+        Patchwork dates are in UTC, so we ensure they're properly marked as such.
+
+        Args:
+            date_str: Date string from Patchwork (assumed to be UTC)
+
+        Returns:
+            ISO 8601 formatted date string with timezone
+        """
+        if not date_str:
+            return ''
+
+        try:
+            # Parse the date string - handles various ISO 8601 formats
+            # If no timezone info, assume UTC (Patchwork returns UTC times)
+            if date_str.endswith('Z') or '+' in date_str or date_str.endswith('-00:00'):
+                # Already has timezone info
+                dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            else:
+                # No timezone info - assume UTC (Patchwork always returns UTC)
+                dt = datetime.fromisoformat(date_str).replace(tzinfo=None)
+                # Convert to UTC-aware datetime
+                dt = dt.replace(tzinfo=timezone.utc)
+
+            # Return in ISO 8601 format with timezone
+            return dt.isoformat()
+        except (ValueError, AttributeError) as e:
+            logger.warning("Failed to parse date '%s': %s", date_str, e)
+            return date_str  # Return as-is if we can't parse it
+
+    @staticmethod
     def _deduplicate_checks(checks: List[Dict]) -> Dict[str, Dict]:
         """
         Deduplicate checks by context, keeping only the latest (highest ID).
@@ -341,7 +375,7 @@ class SuieApp:
             'id': series['id'],
             'title': series.get('name') or 'No title',
             'author': author_name,
-            'date': series.get('date', ''),
+            'date': self._normalize_date(series.get('date', '')),
             'score': series_score.score,
             'is_inactive': is_inactive,
             'patches': patches_data,
