@@ -218,7 +218,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 80px 150px 1fr 100px 120px 200px 30px;
+            grid-template-columns: 80px 150px 1fr 100px 80px 120px 200px 30px;
             gap: 15px;
             align-items: center;
         }
@@ -244,6 +244,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-age {
             color: var(--text-secondary);
             font-size: 13px;
+        }
+
+        .series-score {
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
         }
 
         .series-checks {
@@ -447,7 +453,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         @media (max-width: 1000px) {
             .series-header {
-                grid-template-columns: 60px 120px 1fr 80px 100px 130px 30px;
+                grid-template-columns: 60px 120px 1fr 80px 70px 100px 130px 30px;
                 gap: 10px;
                 font-size: 13px;
             }
@@ -633,6 +639,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             ageEl.className = 'series-age';
             ageEl.textContent = formatRelativeTime(new Date(series.date));
             header.appendChild(ageEl);
+
+            // Score
+            const scoreEl = document.createElement('div');
+            scoreEl.className = 'series-score';
+            scoreEl.textContent = series.score.toFixed(0);
+            scoreEl.title = `Score: ${series.score.toFixed(2)}`;
+            header.appendChild(scoreEl);
 
             // Delegates
             const delegatesEl = document.createElement('div');
