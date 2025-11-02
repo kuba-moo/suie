@@ -1,0 +1,101 @@
+Write a Python application which interacts with Patchwork and ranks
+patches by how ready they are to be applied. There are 3 main components
+to the application:
+ - state mirroring (from a remote patchwork instance)
+ - interactive web UI displying currently active patches
+ - DSL for defing the rules of sorting the patches.
+
+The configuration parameters should be read from a YAML file.
+
+Application you are writing is called Suie.
+
+1. State mirroring
+
+Patches are tracked in an external web application called Patchwork.
+This application exposes a REST API, load the file called patchwork.yaml
+to understand the API. Main object we are tracking is the series,
+which consist of patches. We also need to track comments and checks
+to make sorting decisions. Use the events API endpoint to track changes
+and appearance of new objects.
+
+We intend to only track a single project per instance of the application,
+so expect project name or id in the config file, and query only objects
+relevant to that project.
+
+The state can be only runtime-saved, we don't need a database. When application
+starts it should discover all series which are in active state and less than
+a week old (the exact period of "lookback" should be read from the config).
+Fetch the series and then query the checks, patches, comments related
+to those series.
+
+Provide logs for interactions with patchwork. Product a JSON file listing
+the requests made to patchwork, how long they took and how many objects
+were returned.
+
+The requests to patchwork must have retries configured (use the requests
+library), they may fail transiently when patchwork is overloaded.
+
+The user agent field must be set via the config.
+
+2. Web UI
+
+The Web UI should be a static page which is periodically generated based
+on the state gathered from patchwork. The UI needs to be interactive
+(using JavaScript) but no dynamic loading of content is expected. The UI
+should be regenerated any time the state of objects has changed.
+
+The UI should group patches in series. Default display should show series
+as rows, which can be unfolded to reveal patches. Apart from series ID,
+author and title the main view should show the series age (how long ago
+it was posted) as well as status of the related checks.
+
+Note that since the UI is a static page we need to calculate the age in
+javascript otherwise based on when patches were sent.
+
+Read expected checks from the config file. The UI should focus on checks
+which are either not passing or are missing.
+
+The UI should have the ability to hide inactive series (default).
+
+The UI should have the ability to hide series / patches which have a delegate
+on at least on patch but none of the delegates is a delegate specified in
+a drop-down in the menu.
+
+You are allowed to use common javascript libraries.
+
+Try to be relatively concise with out output. Roughly 30 series should
+fit on a normal display.
+
+3. Sorting DSL
+
+The Web UI must be (statically) sorted using rules which are simple
+to modify. Config should contain a path to a python file and function
+name. It should load that file and run the function with parameters
+needed to perform classification. The function returns relative score
+used for sorting the series. Sorting should be smallest value to highest.
+
+The system should be able to consume a JSON file (configured in config)
+which allows mapping individuals to companies. Read the file called
+db.json.sample to understand the format of the JSON file.
+
+The system should be able to load developer statistics JSON file (path
+form config). This file defines the reviewer score of each individual
+and indirectly (using the previously mentioned file) their company.
+
+The script should have easy access to information like:
+ - reviewer score of the author and their company
+ - who sent Reviewed-by or Acked-by tags for the patches (distinction between
+   Reviewed-by and Acked-by is irrelevant). Reviewed-by or Acked-by tags
+   should ignore those sent by people who work for the same company
+   as the author
+ - whether patch received any review comments, review comment is any
+   email which does not include a review tag
+ - not that review tags sent in response to the cover letter (patch 0),
+   or containing phrases like "for the whole series" or "for the entire
+   series" should be considered as review tags for each patch
+
+The script should have the ability to report "comments" which are
+lines of text explaining / diagnosing the score.
+
+The score is evaluated for each individual patch. The score of the series
+is the highest score of all its patches.

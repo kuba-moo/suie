@@ -1,0 +1,253 @@
+{
+  "count": 22664,
+  "first_date": "Sat, 26 Jul 2025 18:57:33 +0800",
+  "last_date": "Sat, 25 Oct 2025 21:12:43 -0700",
+  "first_msg_id": "<202507261812.7458edBX-lkp@intel.com>",
+  "last_msg_id": "<ffdd2619-15d5-4393-87db-7a893f6d1fbf@davidwei.uk>",
+  "change-sets": {
+    "sra": {
+      "cnt": 370,
+      "max": 7,
+      "sum": 517,
+      "hist": {
+        "1": 256,
+        "2": 92,
+        "3": 16,
+        "4": 4,
+        "5": 0,
+        "6": 1,
+        "7": 1
+      }
+    },
+    "sr-": {
+      "cnt": 153,
+      "max": 7,
+      "sum": 229,
+      "hist": {
+        "1": 107,
+        "2": 28,
+        "3": 11,
+        "4": 4,
+        "5": 2,
+        "6": 0,
+        "7": 1
+      }
+    },
+    "s-a": {
+      "cnt": 224,
+      "max": 5,
+      "sum": 287,
+      "hist": {
+        "1": 179,
+        "2": 30,
+        "3": 13,
+        "4": 1,
+        "5": 1
+      }
+    },
+    "s--": {
+      "cnt": 402,
+      "max": 14,
+      "sum": 502,
+      "hist": {
+        "1": 339,
+        "2": 47,
+        "3": 11,
+        "4": 1,
+        "5": 2,
+        "6": 0,
+        "7": 0,
+        "8": 1,
+        "9": 0,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 1
+      }
+    },
+    "mra": {
+      "cnt": 188,
+      "max": 15,
+      "sum": 444,
+      "hist": {
+        "1": 72,
+        "2": 57,
+        "3": 27,
+        "4": 14,
+        "5": 8,
+        "6": 3,
+        "7": 1,
+        "8": 4,
+        "9": 1,
+        "10": 0,
+        "11": 0,
+        "12": 0,
+        "13": 0,
+        "14": 0,
+        "15": 1
+      }
+    },
+    "mr-": {
+      "cnt": 139,
+      "max": 13,
+      "sum": 295,
+      "hist": {
+        "1": 67,
+        "2": 35,
+        "3": 18,
+        "4": 9,
+        "5": 5,
+        "6": 1,
+        "7": 2,
+        "8": 0,
+        "9": 0,
+        "10": 1,
+        "11": 0,
+        "12": 0,
+        "13": 1
+      }
+    },
+    "m-a": {
+      "cnt": 79,
+      "max": 6,
+      "sum": 121,
+      "hist": {
+        "1": 57,
+        "2": 10,
+        "3": 7,
+        "4": 3,
+        "5": 1,
+        "6": 1
+      }
+    },
+    "m--": {
+      "cnt": 162,
+      "max": 8,
+      "sum": 234,
+      "hist": {
+        "1": 122,
+        "2": 25,
+        "3": 6,
+        "4": 5,
+        "5": 2,
+        "6": 1,
+        "7": 0,
+        "8": 1
+      }
+    }
+  },
+  "ages": {
+    "Horatiu Vultur <horatiu.vultur@microchip.com>": "2019-04-04T01:25:28",
+    "Andrew Lunn <andrew@lunn.ch>": "2005-07-30T08:29:30",
+    "Jakub Kicinski <itsnotmyrealemail@fb.com>": "2011-12-27T16:53:21",
+    "Daniel Borkmann <daniel@iogearbox.net>": "2010-01-12T06:27:30",
+    "Ivan Vecera <ivecera@redhat.com>": "2008-04-17T13:48:41",
+    "Chenyuan Yang <chenyuan0y@gmail.com>": "2024-04-30T05:44:53",
+    "Jesper Dangaard Brouer <yan@cloudflare.com>": "2007-09-12T07:35:24",
+    "William Liu <will@willsroot.io>": "2022-12-29T20:03:15",
+    "Victor Nogueira <victor@mojatatu.com>": "2022-01-18T09:19:09",
+    "Linus Torvalds <torvalds@linuxfoundation.org>": "2005-04-16T15:20:36",
+    "Christian Brauner <brauner@kernel.org>": "2017-08-21T07:13:28",
+    "Florian Fainelli <florian.fainelli@broadcom.com>": "2007-02-12T15:16:27",
+    "Lukasz Majewski <lukma@denx.de>": "2010-09-27T05:32:23",
+    "Lorenzo Bianconi <lorenzo.bianconi@redhat.com>": "2010-08-01T06:47:32",
+    "Dawid Osuchowski <dawid.osuchowski@linux.intel.com>": "2024-04-26T00:58:54"
+   },
+   "individual": {
+    "Horatiu Vultur <horatiu.vultur@microchip.com>": {
+      "author": {
+        "cs": 12,
+        "thr": 31,
+        "msg": 60,
+        "pr_dur": 0
+      },
+      "reviewer": {
+        "cs": 1,
+        "thr": 1,
+        "msg": 1
+      },
+      "score": {
+        "positive": -230,
+        "negative": 230
+      }
+    },
+    "Andrew Lunn <andrew@lunn.ch>": {
+      "author": {
+        "cs": 0,
+        "thr": 0,
+        "msg": 0,
+        "pr_dur": 0
+      },
+      "reviewer": {
+        "cs": 201,
+        "thr": 265,
+        "msg": 569
+      },
+      "score": {
+        "positive": 3658,
+        "negative": -3658
+      }
+    }
+  },
+  "corporate": {
+    "Microchip": {
+      "author": {
+        "cs": 21,
+        "thr": 43,
+        "msg": 94,
+        "pr_dur": 0
+      },
+      "reviewer": {
+        "cs": 26,
+        "thr": 28,
+        "msg": 54
+      },
+      "score": {
+        "positive": 6,
+        "negative": -6
+      }
+    },
+    "Andrew Lunn <andrew@lunn.ch>": {
+      "author": {
+        "cs": 0,
+        "thr": 0,
+        "msg": 0,
+        "pr_dur": 0
+      },
+      "reviewer": {
+        "cs": 201,
+        "thr": 265,
+        "msg": 569
+      },
+      "score": {
+        "positive": 3658,
+        "negative": -3658
+      }
+    }
+  },
+    "git": {
+    "next-size": 20373,
+    "direct_commits": 3084,
+    "direct_test_commits": 290,
+    "reviews": {
+      "commits": 3084,
+      "any": {
+        "reviewed": 2080,
+        "pct": 67.44
+      },
+      "x-company": {
+        "reviewed": 1640,
+        "pct": 53.18
+      }
+    },
+    "commit_authors": {
+      "Heiko Stuebner <heiko@sntech.de>": 4,
+      "David Wu <david.wu@rock-chips.com>": 1,
+      "Lad Prabhakar <prabhakar.mahadev-lad.rj@bp.renesas.com>": 18,
+      "Oliver Neukum <oneukum@suse.com>": 3,
+      "Russell King <kernel@armlinux.org.uk>": 152,
+      "Dust Li <dust.li@linux.alibaba.com>": 1
+    }
+  }
+}
