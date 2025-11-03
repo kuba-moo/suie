@@ -197,23 +197,23 @@ class PatchworkClient:
         return self._get_paginated(f'covers/{cover_id}/comments')
 
     def get_events(self, project: str, since: Optional[str] = None,
-                   category: Optional[str] = None, **kwargs) -> List[Dict]:
+                   since_id: Optional[int] = None, category: Optional[str] = None,
+                   **kwargs) -> List[Dict]:
         """
         Get events for a project
 
-        Server-side filtering with 'since' is slow, so we filter locally instead:
-        - Only send project filter to the API
-        - Paginate through events until we reach events older than 'since'
-        - Return only events that are newer than 'since'
+        Uses event IDs for reliable pagination. Fetches events in descending order (newest first)
+        and stops when reaching an event with ID <= since_id.
 
         Args:
             project: Project ID or linkname
-            since: ISO8601 timestamp for filtering (applied locally)
+            since: ISO8601 timestamp for filtering (deprecated, use since_id)
+            since_id: Event ID to start from (fetch only events with ID > since_id)
             category: Event category to filter by
             **kwargs: Additional query parameters
 
         Returns:
-            List of events after the 'since' timestamp
+            List of events after the since_id, ordered newest first
         """
         params = {'project': project}
         if category:
@@ -225,19 +225,9 @@ class PatchworkClient:
 
         results = []
         page = 1
+        last_event_id = None
 
-        # Parse the since timestamp if provided
-        since_dt = None
-        if since:
-            try:
-                from datetime import datetime
-                if since.endswith("Z"):
-                    since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
-                else:
-                    since_dt = datetime.fromisoformat(since)
-                logger.debug("Filtering events locally for events after %s", since)
-            except (ValueError, AttributeError) as e:
-                logger.warning("Failed to parse since timestamp '%s': %s", since, e)
+        logger.debug("Fetching events for project %s (since_id: %s)", project, since_id)
 
         while True:
             params['page'] = page
@@ -246,44 +236,43 @@ class PatchworkClient:
             if not data:
                 break
 
-            # Filter events locally based on timestamp
-            if since_dt:
-                page_results = []
-                stop_pagination = False
+            page_results = []
+            stop_pagination = False
 
-                for event in data:
-                    event_date_str = event.get('date')
-                    if event_date_str:
-                        try:
-                            if event_date_str.endswith("Z"):
-                                event_dt = datetime.fromisoformat(event_date_str.replace("Z", "+00:00"))
-                            else:
-                                event_dt = datetime.fromisoformat(event_date_str)
+            for event in data:
+                event_id = event.get('id')
 
-                            # Check if event is after the since timestamp
-                            if event_dt > since_dt:
-                                page_results.append(event)
-                            else:
-                                # Event is older than since, stop pagination
-                                logger.debug("Reached event older than since date (event: %s, since: %s), stopping pagination",
-                                           event_date_str, since)
-                                stop_pagination = True
-                                break
-                        except (ValueError, AttributeError):
-                            # If we can't parse the date, include the event
-                            page_results.append(event)
-                    else:
-                        # No date field, include the event
-                        page_results.append(event)
+                if event_id is None:
+                    logger.warning("Event without ID found, skipping: %s", event)
+                    continue
 
-                results.extend(page_results)
+                # Check for non-contiguous IDs
+                if last_event_id is not None:
+                    expected_id = last_event_id - 1
+                    if event_id != expected_id:
+                        # IDs are not contiguous - warn about potential missing events
+                        gap_size = last_event_id - event_id - 1
+                        if gap_size > 0:
+                            logger.warning(
+                                "Non-contiguous event IDs detected! Last: %d, Current: %d, Gap: %d events",
+                                last_event_id, event_id, gap_size
+                            )
 
-                if stop_pagination:
-                    logger.debug("Stopped pagination at page %d, found %d events total", page, len(results))
+                # Check if we've reached the since_id threshold
+                if since_id is not None and event_id <= since_id:
+                    logger.debug("Reached event ID %d (since_id: %d), stopping pagination",
+                               event_id, since_id)
+                    stop_pagination = True
                     break
-            else:
-                # No since filter, include all events
-                results.extend(data)
+
+                page_results.append(event)
+                last_event_id = event_id
+
+            results.extend(page_results)
+
+            if stop_pagination:
+                logger.debug("Stopped pagination at page %d, found %d events total", page, len(results))
+                break
 
             # Check if there are more pages
             if len(data) < params['per_page']:
