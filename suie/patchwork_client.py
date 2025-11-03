@@ -73,7 +73,7 @@ class PatchworkClient:
         start_time = time.time()
 
         try:
-            response = self.session.get(url, params=params, timeout=30)
+            response = self.session.get(url, params=params, timeout=90)
             response.raise_for_status()
             data = response.json()
             duration = time.time() - start_time
@@ -201,23 +201,99 @@ class PatchworkClient:
         """
         Get events for a project
 
+        Server-side filtering with 'since' is slow, so we filter locally instead:
+        - Only send project filter to the API
+        - Paginate through events until we reach events older than 'since'
+        - Return only events that are newer than 'since'
+
         Args:
             project: Project ID or linkname
-            since: ISO8601 timestamp for filtering
+            since: ISO8601 timestamp for filtering (applied locally)
             category: Event category to filter by
             **kwargs: Additional query parameters
 
         Returns:
-            List of events
+            List of events after the 'since' timestamp
         """
         params = {'project': project}
-        if since:
-            params['since'] = since
         if category:
             params['category'] = category
         params.update(kwargs)
 
-        return self._get_paginated('events', params)
+        # Set page size
+        params.setdefault('per_page', 100)
+
+        results = []
+        page = 1
+
+        # Parse the since timestamp if provided
+        since_dt = None
+        if since:
+            try:
+                from datetime import datetime
+                if since.endswith("Z"):
+                    since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                else:
+                    since_dt = datetime.fromisoformat(since)
+                logger.debug("Filtering events locally for events after %s", since)
+            except (ValueError, AttributeError) as e:
+                logger.warning("Failed to parse since timestamp '%s': %s", since, e)
+
+        while True:
+            params['page'] = page
+            data = self._make_request('events', params)
+
+            if not data:
+                break
+
+            # Filter events locally based on timestamp
+            if since_dt:
+                page_results = []
+                stop_pagination = False
+
+                for event in data:
+                    event_date_str = event.get('date')
+                    if event_date_str:
+                        try:
+                            if event_date_str.endswith("Z"):
+                                event_dt = datetime.fromisoformat(event_date_str.replace("Z", "+00:00"))
+                            else:
+                                event_dt = datetime.fromisoformat(event_date_str)
+
+                            # Check if event is after the since timestamp
+                            if event_dt > since_dt:
+                                page_results.append(event)
+                            else:
+                                # Event is older than since, stop pagination
+                                logger.debug("Reached event older than since date (event: %s, since: %s), stopping pagination",
+                                           event_date_str, since)
+                                stop_pagination = True
+                                break
+                        except (ValueError, AttributeError):
+                            # If we can't parse the date, include the event
+                            page_results.append(event)
+                    else:
+                        # No date field, include the event
+                        page_results.append(event)
+
+                results.extend(page_results)
+
+                if stop_pagination:
+                    logger.debug("Stopped pagination at page %d, found %d events total", page, len(results))
+                    break
+            else:
+                # No since filter, include all events
+                results.extend(data)
+
+            # Check if there are more pages
+            if len(data) < params['per_page']:
+                break
+
+            page += 1
+            time.sleep(0.1)  # Small delay between pages
+
+        logger.debug("Fetched %d events for project %s", len(results), project)
+        return results
 
     def save_request_log(self):
         """
