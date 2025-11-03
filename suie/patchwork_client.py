@@ -246,27 +246,27 @@ class PatchworkClient:
                     logger.warning("Event without ID found, skipping: %s", event)
                     continue
 
-                # Check for non-contiguous IDs
+                # Check for ID ordering issues (repeated or backward IDs)
+                # This check is done on ALL events, not just those after since_id
                 if last_event_id is not None:
-                    expected_id = last_event_id - 1
-                    if event_id != expected_id:
-                        # IDs are not contiguous - warn about potential missing events
-                        gap_size = last_event_id - event_id - 1
-                        if gap_size > 0:
-                            logger.warning(
-                                "Non-contiguous event IDs detected! Last: %d, Current: %d, Gap: %d events",
-                                last_event_id, event_id, gap_size
-                            )
+                    if event_id >= last_event_id:
+                        # IDs should be descending (newest first), so this is an error
+                        logger.warning(
+                            "Event ID ordering issue! Last: %d, Current: %d (IDs should be descending)",
+                            last_event_id, event_id
+                        )
 
-                # Check if we've reached the since_id threshold
-                if since_id is not None and event_id <= since_id:
-                    logger.debug("Reached event ID %d (since_id: %d), stopping pagination",
-                               event_id, since_id)
-                    stop_pagination = True
-                    break
-
-                page_results.append(event)
+                # Update last_event_id for next iteration (track all events, not just filtered ones)
                 last_event_id = event_id
+
+                # Check if we've reached the since_id threshold - only add events after this
+                if since_id is not None and event_id <= since_id:
+                    if not stop_pagination:
+                        logger.debug("Reached event ID %d (since_id: %d), stopping pagination",
+                                     event_id, since_id)
+                    stop_pagination = True
+                else:
+                    page_results.append(event)
 
             results.extend(page_results)
 
