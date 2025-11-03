@@ -14,7 +14,8 @@ class UIGenerator:
     """Generates a static HTML page with interactive JavaScript"""
 
     def __init__(self, output_path: str, hide_inactive_default: bool = True,
-                 expected_checks: Optional[List[str]] = None):
+                 expected_checks: Optional[List[str]] = None,
+                 tracking_scripts: Optional[List[str]] = None):
         """
         Initialize the UI generator
 
@@ -22,10 +23,12 @@ class UIGenerator:
             output_path: Path where HTML file should be written
             hide_inactive_default: Whether to hide inactive series by default
             expected_checks: List of expected check names
+            tracking_scripts: List of tracking script HTML strings to insert in <head>
         """
         self.output_path = output_path
         self.hide_inactive_default = hide_inactive_default
         self.expected_checks = expected_checks or []
+        self.tracking_scripts = tracking_scripts or []
 
     def generate(self, series_scores: List[Dict], delegates: List[str]):
         """
@@ -59,6 +62,7 @@ class UIGenerator:
     def _render_template(self, data: Dict) -> str:
         """Render the HTML template"""
         template = Template(HTML_TEMPLATE)
+        data['tracking_scripts'] = self.tracking_scripts
         return template.render(**data)
 
 
@@ -71,6 +75,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Suie - Patch Review Queue</title>
     <link rel="icon" type="image/png" href="suie.png">
+    {% for script in tracking_scripts %}
+    {{ script | safe }}
+    {% endfor %}
     <style>
         :root {
             /* Light mode colors */

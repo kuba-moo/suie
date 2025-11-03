@@ -21,6 +21,12 @@ ui:
     - "test"
     - "checkpatch"
 
+  # Optional tracking scripts to insert in HTML <head>
+  # Each script will be inserted as-is into the HTML
+  tracking_scripts: []
+    # Example:
+    # - '<script defer data-domain="example.com" src="https://domain.com/js/script.js"></script>'
+
 # Sorting configuration
 sorting:
   module_path: "scoring/example_scorer.py"

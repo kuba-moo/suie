@@ -65,6 +65,7 @@ class SuieApp:
             output_path=self.config["ui"]["output_path"],
             hide_inactive_default=self.config["ui"].get("hide_inactive_default", True),
             expected_checks=self.config["ui"].get("expected_checks", []),
+            tracking_scripts=self.config["ui"].get("tracking_scripts", []),
         )
 
         logger.info("Suie initialized successfully")
