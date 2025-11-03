@@ -177,6 +177,8 @@ class PatchworkPoller:
 
         # Skip if we've already processed this event
         if self.state.last_event_id and event_id <= self.state.last_event_id:
+            logger.debug("Skipping already processed event %d (last: %d)", 
+                        event_id, self.state.last_event_id)
             return False
 
         logger.debug("Processing event %d: %s", event_id, category)
@@ -217,6 +219,7 @@ class PatchworkPoller:
                     patch_data = self.client.get_patch_detail(patch_id)
                     self.state.add_patch(patch_data)
                     state_changed = True
+                    logger.info("Updated patch %d due to %s event", patch_id, category)
 
             elif category == 'check-created':
                 patch = payload.get('patch', {})
@@ -252,10 +255,15 @@ class PatchworkPoller:
                     self.state.set_cover_comments(cover_id, comments)
                     state_changed = True
 
-            # Update last event ID
-            self.state.update_last_event(event_id)
+            # Always update last event ID and date, even if we didn't process it
+            # This ensures we advance past already-seen events
+            event_date = event.get('date')
+            self.state.update_last_event(event_id, event_date)
 
         except Exception as e:
             logger.error("Failed to process event %d: %s", event_id, e)
+            # Still update last event ID to avoid getting stuck
+            event_date = event.get('date')
+            self.state.update_last_event(event_id, event_date)
 
         return state_changed

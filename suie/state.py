@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, List, Optional, Set
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 
@@ -211,7 +211,33 @@ class StateManager:
             'last_update': self.last_update.isoformat() if self.last_update else None
         }
 
-    def update_last_event(self, event_id: int):
-        """Update the last processed event ID"""
+    def update_last_event(self, event_id: int, event_date: Optional[str] = None):
+        """
+        Update the last processed event ID and date
+
+        Args:
+            event_id: Event ID
+            event_date: ISO 8601 date string from the event (optional)
+        """
         self.last_event_id = event_id
-        self.last_update = datetime.utcnow()
+
+        # If event_date is provided, use it; otherwise use current time
+        if event_date:
+            try:
+                # Parse the event date
+                if event_date.endswith("Z"):
+                    self.last_update = datetime.fromisoformat(event_date.replace("Z", "+00:00"))
+                else:
+                    self.last_update = datetime.fromisoformat(event_date)
+                # Convert to UTC if needed
+                if self.last_update.tzinfo is None:
+                    self.last_update = self.last_update.replace(tzinfo=None)
+                    self.last_update = datetime.utcnow()  # Fallback to UTC now
+                else:
+                    # Convert to UTC for consistent comparisons
+                    self.last_update = self.last_update.astimezone(timezone.utc).replace(tzinfo=None)
+            except (ValueError, AttributeError):
+                # If parsing fails, use current time
+                self.last_update = datetime.utcnow()
+        else:
+            self.last_update = datetime.utcnow()
