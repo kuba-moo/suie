@@ -32,10 +32,16 @@ class PatchworkPoller:
         Initialize state by fetching recent active series
 
         Args:
-            lookback_days: How many days back to look for series
+            lookback_days: Number of days to look back
         """
         logger.info("Initializing state for project %s (lookback: %d days)",
                    self.project, lookback_days)
+
+        # Capture the initialization start time - we'll use this as the baseline
+        # for event polling to avoid fetching historical events we've already processed
+        init_start_time = datetime.utcnow()
+        logger.info("Initialization started at %s (will only poll for events since this time)",
+                   init_start_time.isoformat())
 
         # Calculate the cutoff date
         cutoff = datetime.utcnow() - timedelta(days=lookback_days)
@@ -49,6 +55,13 @@ class PatchworkPoller:
         # Process each series
         for series_data in series_list:
             self._process_series(series_data)
+
+        # Set the last_update to the initialization start time so that we only
+        # fetch events that occurred since we started initializing
+        # This prevents fetching thousands of historical events
+        self.state.last_update = init_start_time
+        logger.info("Set event polling baseline to initialization start time: %s",
+                   init_start_time.isoformat())
 
         logger.info("State initialized: %s", self.state.get_stats())
 
@@ -135,11 +148,13 @@ class PatchworkPoller:
         Returns:
             True if state was updated, False otherwise
         """
-        if since is None and self.state.last_event_id:
-            # Fetch events since last processed event
-            # Note: Patchwork events don't support filtering by ID directly,
-            # so we'll fetch recent events and skip ones we've seen
+        if since is None:
+            # Fetch events since last update time (if available)
+            # This uses either the initialization start time or the timestamp
+            # of the last processed event
             since = self.state.last_update.isoformat() if self.state.last_update else None
+            if since:
+                logger.debug("Fetching events since %s", since)
 
         try:
             events = self.client.get_events(self.project, since=since)
@@ -177,7 +192,7 @@ class PatchworkPoller:
 
         # Skip if we've already processed this event
         if self.state.last_event_id and event_id <= self.state.last_event_id:
-            logger.debug("Skipping already processed event %d (last: %d)", 
+            logger.debug("Skipping already processed event %d (last: %d)",
                         event_id, self.state.last_event_id)
             return False
 
