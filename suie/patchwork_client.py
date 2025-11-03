@@ -198,7 +198,7 @@ class PatchworkClient:
 
     def get_events(self, project: str, since: Optional[str] = None,
                    since_id: Optional[int] = None, category: Optional[str] = None,
-                   **kwargs) -> List[Dict]:
+                   single_page: bool = False, **kwargs) -> List[Dict]:
         """
         Get events for a project
 
@@ -210,6 +210,7 @@ class PatchworkClient:
             since: ISO8601 timestamp for filtering (deprecated, use since_id)
             since_id: Event ID to start from (fetch only events with ID > since_id)
             category: Event category to filter by
+            single_page: If True, only fetch one page and return (for initialization)
             **kwargs: Additional query parameters
 
         Returns:
@@ -227,7 +228,8 @@ class PatchworkClient:
         page = 1
         last_event_id = None
 
-        logger.debug("Fetching events for project %s (since_id: %s)", project, since_id)
+        logger.debug("Fetching events for project %s (since_id: %s, single_page: %s)",
+                    project, since_id, single_page)
 
         while True:
             params['page'] = page
@@ -269,6 +271,11 @@ class PatchworkClient:
                     page_results.append(event)
 
             results.extend(page_results)
+
+            # Stop after first page if requested
+            if single_page:
+                logger.debug("Single page fetch complete, found %d events", len(results))
+                break
 
             if stop_pagination:
                 logger.debug("Stopped pagination at page %d, found %d events total", page, len(results))

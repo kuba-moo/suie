@@ -40,7 +40,7 @@ class PatchworkPoller:
         # First, get the latest event ID before loading state
         # This establishes our baseline - we'll only process events after this ID
         logger.info("Fetching latest event ID as baseline...")
-        latest_events = self.client.get_events(self.project, per_page=1)
+        latest_events = self.client.get_events(self.project, per_page=1, single_page=True)
 
         if latest_events:
             baseline_event_id = latest_events[0].get('id', 0)
