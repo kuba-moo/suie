@@ -537,6 +537,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-color: #8a7000;
         }
 
+        .patch-count-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #e1e4e8;
+            color: #24292e;
+            margin-right: 8px;
+        }
+
+        [data-theme="dark"] .patch-count-badge {
+            background-color: #30363d;
+            color: #c9d1d9;
+        }
+
         .company-badge {
             padding: 2px 6px;
             border-radius: 10px;
@@ -943,10 +958,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             header.appendChild(authorEl);
 
-            // Title
+            // Title (with patch count badge)
             const titleEl = document.createElement('div');
             titleEl.className = 'series-title';
-            titleEl.textContent = series.title;
+
+            // Add patch count badge
+            const patchCountBadge = document.createElement('span');
+            patchCountBadge.className = 'patch-count-badge';
+            patchCountBadge.textContent = series.patches.length;
+            patchCountBadge.title = `${series.patches.length} patch${series.patches.length !== 1 ? 'es' : ''} in this series`;
+            titleEl.appendChild(patchCountBadge);
+
+            // Add title text
+            const titleText = document.createTextNode(series.title);
+            titleEl.appendChild(titleText);
             titleEl.title = series.title;
             header.appendChild(titleEl);
 
