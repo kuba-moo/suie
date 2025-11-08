@@ -545,6 +545,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background-color: #e1e4e8;
             color: #24292e;
             margin-right: 8px;
+            min-width: 30px;
+            display: inline-block;
+            text-align: right;
         }
 
         [data-theme="dark"] .patch-count-badge {
