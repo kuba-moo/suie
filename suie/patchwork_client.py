@@ -69,6 +69,9 @@ class PatchworkClient:
         Returns:
             Response JSON data
         """
+        # Ensure endpoint has trailing slash to avoid 301 redirects
+        if not endpoint.endswith('/'):
+            endpoint = endpoint + '/'
         url = urljoin(self.base_url + '/', endpoint)
         start_time = time.time()
 
