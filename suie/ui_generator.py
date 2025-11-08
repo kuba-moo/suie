@@ -979,13 +979,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         function handleSort(column) {
-            // Cycle through: first direction -> opposite direction -> unsorted (back to score)
+            // Cycle through: default direction -> opposite direction -> reset to score
             if (currentSort.column === column) {
-                // Already sorting by this column - toggle direction
-                if (currentSort.direction === 'asc') {
-                    currentSort.direction = 'desc';
-                } else if (currentSort.direction === 'desc') {
-                    // Third click - remove sorting (back to default: score)
+                // Already sorting by this column
+                const defaultDirection = (column === 'score' || column === 'checks') ? 'asc' : 'desc';
+
+                if (currentSort.direction === defaultDirection) {
+                    // Second click: toggle to opposite of default direction
+                    currentSort.direction = defaultDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    // Third click: currently at opposite of default, reset to score
                     currentSort.column = 'score';
                     currentSort.direction = 'asc';
                 }
