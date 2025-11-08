@@ -747,6 +747,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <label for="hide-inactive">Hide inactive series</label>
                 </div>
                 <div class="control-group">
+                    <label for="min-age-filter">Min age:</label>
+                    <select id="min-age-filter">
+                        <option value="0">All</option>
+                        <option value="3">3h+</option>
+                        <option value="6">6h+</option>
+                        <option value="9">9h+</option>
+                        <option value="12">12h+</option>
+                        <option value="15">15h+</option>
+                        <option value="18">18h+</option>
+                        <option value="21">21h+</option>
+                        <option value="24">1d+</option>
+                        <option value="48">2d+</option>
+                        <option value="72">3d+</option>
+                    </select>
+                </div>
+                <div class="control-group">
                     <label for="delegate-filter">Delegate:</label>
                     <select id="delegate-filter">
                         <option value="">All</option>
@@ -792,6 +808,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // Event listeners
             document.getElementById('hide-inactive').addEventListener('change', renderSeries);
+            document.getElementById('min-age-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
             document.getElementById('fold-all').addEventListener('click', foldAllSeries);
             document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -867,6 +884,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         function renderSeries() {
             const container = document.getElementById('series-list');
             const hideInactive = document.getElementById('hide-inactive').checked;
+            const minAgeFilter = parseInt(document.getElementById('min-age-filter').value);
             const delegateFilter = document.getElementById('delegate-filter').value;
 
             container.innerHTML = '';
@@ -916,6 +934,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             let filteredSeries = seriesData.filter(series => {
                 // Apply inactive filter
                 if (hideInactive && series.is_inactive) {
+                    return false;
+                }
+
+                // Apply minimum age filter (based on weekday hours)
+                if (minAgeFilter > 0 && series.age_weekday_hours < minAgeFilter) {
                     return false;
                 }
 
