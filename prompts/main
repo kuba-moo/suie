@@ -144,3 +144,7 @@ The project correctly detects when series state is "partial" (specifically accep
 Make sure that the patch count badge in the UI is the same width when patch count is single digit and when it's double digit. The badge should be right aligned.
 
 Extract the tree designation from series titles. The tree designation is optional, the first word of the title, single word (may be hyphenated) and it is always in square brackets. Remove the square brackets from this desigantion. Display it as a badge above the title. Move the patch count badge to the same line as the tree designation. The patch count should be after the tree designation. The style of the tree desigantion should be the same as patch count.
+
+Make it possible to sort the list by ID, age, reviews, score and checks. One click on the column header to sort one way, second click to sort the opposite way, third click removes sorting. The output should default to sorting by the score (which is the existing behavior). When sorting by reviewers consider 1 full review as +5, partial review +1 and open comments as -1. When sorting by checks consider fails as +5, warnings as +1 and missing checks as +10.
+
+Add a filter to hide patches newer than specified number of hours (by age during weekdays). The granularity of number of hours should be 3.

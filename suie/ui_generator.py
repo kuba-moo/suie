@@ -230,6 +230,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 6px 6px 0 0;
         }
 
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 16px;
+        }
+
+        .sortable-header:hover {
+            color: var(--text-primary);
+        }
+
+        .sort-indicator {
+            position: absolute;
+            right: 0;
+            font-size: 10px;
+            opacity: 0.6;
+        }
+
         .series-row {
             border-bottom: 1px solid var(--border-color);
             cursor: pointer;
@@ -758,6 +776,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const seriesData = {{ series_list | tojson }};
         const generatedAt = "{{ generated_at }}";
 
+        // Sorting state
+        let currentSort = {
+            column: 'score',  // Default sort by score
+            direction: 'asc'  // ascending (lower score = higher priority)
+        };
+
         // Initialize UI
         document.addEventListener('DOMContentLoaded', () => {
             initializeTheme();
@@ -847,53 +871,172 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             container.innerHTML = '';
 
-            // Add header row
+            // Add header row with sortable columns
             const headerRow = document.createElement('div');
             headerRow.className = 'series-list-header';
 
-            const headers = ['ID', 'Author', 'Title', 'Age', 'Score', 'State', 'Reviews', 'Checks', ''];
-            headers.forEach(headerText => {
+            const headers = [
+                {text: 'ID', sortable: true, key: 'id'},
+                {text: 'Author', sortable: false},
+                {text: 'Title', sortable: false},
+                {text: 'Age', sortable: true, key: 'age'},
+                {text: 'Score', sortable: true, key: 'score'},
+                {text: 'State', sortable: false},
+                {text: 'Reviews', sortable: true, key: 'reviews'},
+                {text: 'Checks', sortable: true, key: 'checks'},
+                {text: '', sortable: false}
+            ];
+
+            headers.forEach(header => {
                 const headerCell = document.createElement('div');
-                headerCell.textContent = headerText;
+                if (header.sortable) {
+                    headerCell.className = 'sortable-header';
+                    headerCell.textContent = header.text;
+
+                    // Add sort indicator if this column is currently sorted
+                    if (currentSort.column === header.key) {
+                        const indicator = document.createElement('span');
+                        indicator.className = 'sort-indicator';
+                        indicator.textContent = currentSort.direction === 'asc' ? '▲' : '▼';
+                        headerCell.appendChild(indicator);
+                    }
+
+                    headerCell.addEventListener('click', () => {
+                        handleSort(header.key);
+                    });
+                } else {
+                    headerCell.textContent = header.text;
+                }
                 headerRow.appendChild(headerCell);
             });
 
             container.appendChild(headerRow);
 
-            let visibleCount = 0;
-            let visiblePatchCount = 0;
-
-            seriesData.forEach(series => {
-                // Apply filters
+            // Filter and sort data
+            let filteredSeries = seriesData.filter(series => {
+                // Apply inactive filter
                 if (hideInactive && series.is_inactive) {
-                    return;
+                    return false;
                 }
 
+                // Apply delegate filter
                 if (delegateFilter) {
                     if (delegateFilter === '__none__') {
-                        // Show only series with no delegate
                         const hasAnyDelegate = series.patches.some(patch => patch.delegate);
                         if (hasAnyDelegate) {
-                            return;
+                            return false;
                         }
                     } else {
-                        // Show series where at least one patch has the selected delegate
                         const hasDelegateMatch = series.patches.some(patch =>
                             patch.delegate === delegateFilter
                         );
                         if (!hasDelegateMatch) {
-                            return;
+                            return false;
                         }
                     }
                 }
 
-                visibleCount++;
-                visiblePatchCount += series.patches.length;
+                return true;
+            });
+
+            // Apply sorting if not default
+            if (currentSort.column !== null) {
+                filteredSeries = sortSeries(filteredSeries, currentSort.column, currentSort.direction);
+            }
+
+            let visibleCount = filteredSeries.length;
+            let visiblePatchCount = filteredSeries.reduce((sum, s) => sum + s.patches.length, 0);
+
+            filteredSeries.forEach(series => {
                 container.appendChild(createSeriesRow(series));
             });
 
             document.getElementById('visible-series').textContent = visibleCount;
             document.getElementById('visible-patches').textContent = visiblePatchCount;
+        }
+
+        function handleSort(column) {
+            // Cycle through: first direction -> opposite direction -> unsorted (back to score)
+            if (currentSort.column === column) {
+                // Already sorting by this column - toggle direction
+                if (currentSort.direction === 'asc') {
+                    currentSort.direction = 'desc';
+                } else if (currentSort.direction === 'desc') {
+                    // Third click - remove sorting (back to default: score)
+                    currentSort.column = 'score';
+                    currentSort.direction = 'asc';
+                }
+            } else {
+                // First click on this column - set default direction
+                currentSort.column = column;
+                if (column === 'score' || column === 'checks') {
+                    currentSort.direction = 'asc';  // Lower is better
+                } else {
+                    currentSort.direction = 'desc';  // Higher/newer is better
+                }
+            }
+
+            renderSeries();
+        }
+
+        function calculateReviewScore(series) {
+            // Full review = +5, partial review = +1, open comments = -1
+            let score = 0;
+            score += (series.reviewers_full || []).length * 5;
+            score += (series.reviewers_partial || []).length * 1;
+            score -= (series.commenters || []).length * 1;
+            return score;
+        }
+
+        function calculateCheckScore(series) {
+            // Fails = +5, warnings = +1, missing checks = +10
+            let score = 0;
+            score += (series.checks_summary.failed || []).length * 5;
+            score += (series.checks_summary.warning || []).length * 1;
+            score += (series.checks_summary.missing || []).length * 10;
+            return score;
+        }
+
+        function sortSeries(series, column, direction) {
+            const sorted = [...series];
+
+            sorted.sort((a, b) => {
+                let aVal, bVal;
+
+                switch (column) {
+                    case 'id':
+                        aVal = a.id;
+                        bVal = b.id;
+                        break;
+                    case 'age':
+                        aVal = a.age_total_hours;
+                        bVal = b.age_total_hours;
+                        break;
+                    case 'score':
+                        aVal = a.score;
+                        bVal = b.score;
+                        break;
+                    case 'reviews':
+                        aVal = calculateReviewScore(a);
+                        bVal = calculateReviewScore(b);
+                        break;
+                    case 'checks':
+                        aVal = calculateCheckScore(a);
+                        bVal = calculateCheckScore(b);
+                        break;
+                    default:
+                        return 0;
+                }
+
+                // Handle numeric comparison
+                if (direction === 'asc') {
+                    return aVal - bVal;
+                } else {
+                    return bVal - aVal;
+                }
+            });
+
+            return sorted;
         }
 
         function createSeriesRow(series) {
