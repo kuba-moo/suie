@@ -555,6 +555,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #c9d1d9;
         }
 
+        .tree-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #e1e4e8;
+            color: #24292e;
+            margin-right: 8px;
+        }
+
+        [data-theme="dark"] .tree-badge {
+            background-color: #30363d;
+            color: #c9d1d9;
+        }
+
         .company-badge {
             padding: 2px 6px;
             border-radius: 10px;
@@ -961,22 +976,61 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             header.appendChild(authorEl);
 
-            // Title (with patch count badge)
+            // Title container with title left-aligned and badges right-aligned
+            const titleContainerEl = document.createElement('div');
+            titleContainerEl.style.display = 'flex';
+            titleContainerEl.style.justifyContent = 'space-between';
+            titleContainerEl.style.alignItems = 'center';
+            titleContainerEl.style.gap = '10px';
+            titleContainerEl.style.minWidth = '0';  // Allow text truncation
+
+            // Extract tree designation from title (first word in square brackets)
+            let treeDesignation = null;
+            let cleanTitle = series.title;
+            const treeMatch = series.title.match(/^\[([^\]]+)\]\s*/);
+            if (treeMatch) {
+                treeDesignation = treeMatch[1];
+                cleanTitle = series.title.substring(treeMatch[0].length);
+            }
+
+            // Title (left side)
             const titleEl = document.createElement('div');
             titleEl.className = 'series-title';
+            titleEl.textContent = cleanTitle;
+            titleEl.title = series.title;  // Use original title with tree for tooltip
+            titleEl.style.overflow = 'hidden';
+            titleEl.style.textOverflow = 'ellipsis';
+            titleEl.style.whiteSpace = 'nowrap';
+            titleEl.style.flex = '1';
+            titleEl.style.minWidth = '0';
+            titleContainerEl.appendChild(titleEl);
+
+            // Badges container (right side)
+            const badgesContainer = document.createElement('div');
+            badgesContainer.style.display = 'flex';
+            badgesContainer.style.alignItems = 'center';
+            badgesContainer.style.gap = '0';  // No gap since badges have their own margin-right
+            badgesContainer.style.flexShrink = '0';  // Don't shrink badges
+
+            // Add tree designation badge if present
+            if (treeDesignation) {
+                const treeBadge = document.createElement('span');
+                treeBadge.className = 'tree-badge';
+                treeBadge.textContent = treeDesignation;
+                treeBadge.title = `Tree: ${treeDesignation}`;
+                badgesContainer.appendChild(treeBadge);
+            }
 
             // Add patch count badge
             const patchCountBadge = document.createElement('span');
             patchCountBadge.className = 'patch-count-badge';
             patchCountBadge.textContent = series.patches.length;
             patchCountBadge.title = `${series.patches.length} patch${series.patches.length !== 1 ? 'es' : ''} in this series`;
-            titleEl.appendChild(patchCountBadge);
+            badgesContainer.appendChild(patchCountBadge);
 
-            // Add title text
-            const titleText = document.createTextNode(series.title);
-            titleEl.appendChild(titleText);
-            titleEl.title = series.title;
-            header.appendChild(titleEl);
+            titleContainerEl.appendChild(badgesContainer);
+
+            header.appendChild(titleContainerEl);
 
             // Age (with weekend time on separate line)
             const ageEl = document.createElement('div');

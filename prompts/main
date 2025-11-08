@@ -140,3 +140,7 @@ Treat Changes Requested as a distinct and separate state. Patches which are in C
 Add to the summary line which lists the number of series (total and visible) the number of patches. Consider patch visible if its series is visible.
 
 The project correctly detects when series state is "partial" (specifically accepted). However, when series is partially accepted and partially in an inactive state it still shows up as active in the display. A series should only show up as active if some of the patches are in an active state (new or under-review).
+
+Make sure that the patch count badge in the UI is the same width when patch count is single digit and when it's double digit. The badge should be right aligned.
+
+Extract the tree designation from series titles. The tree designation is optional, the first word of the title, single word (may be hyphenated) and it is always in square brackets. Remove the square brackets from this desigantion. Display it as a badge above the title. Move the patch count badge to the same line as the tree designation. The patch count should be after the tree designation. The style of the tree desigantion should be the same as patch count.
