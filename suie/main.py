@@ -420,7 +420,7 @@ class SuieApp:
     def _extract_reviewer_emails(patch: Dict) -> List[str]:
         """
         Extract reviewer email addresses from a patch.
-        Looks for Reviewed-by and Acked-by tags (treating them the same).
+        Looks for Reviewed-by, Acked-by, and Tested-by tags (treating them the same).
 
         Args:
             patch: Patch data
@@ -431,9 +431,9 @@ class SuieApp:
         reviewers = []
         seen = set()  # Deduplicate reviewers
 
-        # Check headers - only Reviewed-by and Acked-by (per requirements)
+        # Check headers - Reviewed-by, Acked-by, and Tested-by
         headers = patch.get("headers", {})
-        tag_headers = ["Reviewed-by", "Acked-by"]
+        tag_headers = ["Reviewed-by", "Acked-by", "Tested-by"]
 
         for tag_type in tag_headers:
             values = headers.get(tag_type, [])
@@ -459,9 +459,9 @@ class SuieApp:
                             reviewers.append(email)
                             seen.add(email)
 
-        # Also check patch content for trailers - only Reviewed-by and Acked-by
+        # Also check patch content for trailers - Reviewed-by, Acked-by, and Tested-by
         content = patch.get("content", "")
-        tag_pattern = (r"(?:Reviewed-by|Acked-by):\s*(?:[^<\n]+<)?"
+        tag_pattern = (r"(?:Reviewed-by|Acked-by|Tested-by):\s*(?:[^<\n]+<)?"
                       r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
         matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
@@ -968,7 +968,7 @@ class SuieApp:
 
             # Check patch headers
             headers = patch.get("headers", {})
-            tag_headers = ["Reviewed-by", "Acked-by"]
+            tag_headers = ["Reviewed-by", "Acked-by", "Tested-by"]
 
             for tag_type in tag_headers:
                 values = headers.get(tag_type, [])
@@ -982,7 +982,7 @@ class SuieApp:
 
             # Check patch content for trailers
             content = patch.get("content", "")
-            tag_pattern = r"(?:Reviewed-by|Acked-by):\s*(.+?)(?:\n|$)"
+            tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*(.+?)(?:\n|$)"
             matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
             for value in matches:
