@@ -755,7 +755,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <header>
             <h1><img src="suie.png" alt="Suie">Suie - Patch Review Queue</h1>
             <div class="stats">
-                Generated at: <span id="generated-time"></span> |
+                Generated: <span id="generated-time"></span> ago |
                 Series: <span id="visible-series"></span> / <span id="total-series"></span> |
                 Patches: <span id="visible-patches"></span> / <span id="total-patches"></span>
             </div>

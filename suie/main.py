@@ -1258,6 +1258,10 @@ class SuieApp:
         """Prepare series data for UI"""
         expected_checks = self.config["ui"].get("expected_checks", [])
 
+        # Get author email early - needed for filtering reviewers/commenters
+        submitter = series.get("submitter", {})
+        author_email = submitter.get("email", "")
+
         # Aggregate check status across all patches
         # For each check context, track the worst state across all patches
         # Priority: missing > fail > warning > success
@@ -1397,8 +1401,6 @@ class SuieApp:
             )
 
         # Get author name and company
-        submitter = series.get("submitter", {})
-        author_email = submitter.get("email", "")
         author_name = submitter.get("name", "")
 
         # If name is missing or empty, use email address
@@ -1502,7 +1504,7 @@ class SuieApp:
 
             # Get reviewers with source information for this patch
             comments = self.state.get_patch_comments(patch_id)
-            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments)
+            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments, author_email)
 
             # For each reviewer in this patch, track them at series level
             for reviewer_name, source in reviewers_with_source.items():
