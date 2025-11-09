@@ -277,6 +277,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-id {
             font-weight: 600;
             color: var(--text-link);
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.2s;
+        }
+
+        .series-id:hover {
+            opacity: 0.7;
+        }
+
+        .series-id:active {
+            opacity: 0.5;
         }
 
         .series-author {
@@ -1082,6 +1093,33 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const idEl = document.createElement('div');
             idEl.className = 'series-id';
             idEl.textContent = `#${series.id}`;
+            idEl.title = 'Click to copy ID to clipboard';
+
+            // Add click handler to copy ID to clipboard
+            idEl.addEventListener('click', (e) => {
+                e.stopPropagation();  // Don't trigger row expansion
+
+                // Copy just the number to clipboard
+                navigator.clipboard.writeText(series.id.toString()).then(() => {
+                    // Visual feedback: briefly change the text
+                    const originalText = idEl.textContent;
+                    idEl.textContent = '✓ Copied';
+
+                    setTimeout(() => {
+                        idEl.textContent = originalText;
+                    }, 1000);
+                }).catch(err => {
+                    console.error('Failed to copy to clipboard:', err);
+                    // Fallback: show error briefly
+                    const originalText = idEl.textContent;
+                    idEl.textContent = '✗ Failed';
+
+                    setTimeout(() => {
+                        idEl.textContent = originalText;
+                    }, 1000);
+                });
+            });
+
             idLinksEl.appendChild(idEl);
 
             // Links container

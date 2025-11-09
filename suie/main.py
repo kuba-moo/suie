@@ -48,6 +48,10 @@ class Person:
         return name, email
 
     def __eq__(self, other):
+        # Handle comparison with another Person object
+        if isinstance(other, Person):
+            return self.email == other.email
+        # Handle comparison with string (name_email format)
         if self.name_email == other:
             return True
         _, email = self.name_email_split(other)
