@@ -1154,11 +1154,44 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             titleContainerEl.style.minWidth = '0';  // Allow text truncation
 
             // Extract tree designation from title (first word in square brackets)
+            // Handle composite tags like [net-next,v2] or [v1,net-next,1/2]
             let treeDesignation = null;
             let cleanTitle = series.title;
             const treeMatch = series.title.match(/^\[([^\]]+)\]\s*/);
             if (treeMatch) {
-                treeDesignation = treeMatch[1];
+                const bracketContent = treeMatch[1];
+
+                // Check if bracket contains comma or space (composite tag)
+                if (bracketContent.includes(',') || bracketContent.includes(' ')) {
+                    // Split by comma or space
+                    const parts = bracketContent.split(/[,\s]+/).map(p => p.trim()).filter(p => p);
+
+                    // Filter out parts that look like:
+                    // - Version numbers: v1, v2, V3, etc.
+                    // - Patch numbers: 1/2, 3/5, etc.
+                    const filteredParts = parts.filter(part => {
+                        // Check if it's a version number (v\d+ or V\d+)
+                        if (/^v\d+$/i.test(part)) {
+                            return false;
+                        }
+                        // Check if it's a patch number (e.g., 1/2, 3/5)
+                        if (/^\d+\/\d+$/.test(part)) {
+                            return false;
+                        }
+                        return true;
+                    });
+
+                    // If we have any parts left, use the first one as tree designation
+                    if (filteredParts.length > 0) {
+                        treeDesignation = filteredParts[0];
+                    }
+                } else {
+                    // Single part, use as-is (unless it's a version or patch number)
+                    if (!/^v\d+$/i.test(bracketContent) && !/^\d+\/\d+$/.test(bracketContent)) {
+                        treeDesignation = bracketContent;
+                    }
+                }
+
                 cleanTitle = series.title.substring(treeMatch[0].length);
             }
 
