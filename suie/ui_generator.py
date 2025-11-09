@@ -496,15 +496,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 12px;
             font-size: 11px;
             font-weight: 600;
-            background-color: #ddf4ff;
-            color: #0969da;
-            border: 2px solid #54aeff;
+            background-color: #dcffe4;
+            color: #0e6027;
+            border: 2px solid #34d058;
         }
 
         [data-theme="dark"] .reviewer-badge-comment {
-            background-color: #1a2d3d;
-            color: #58a6ff;
-            border-color: #58a6ff;
+            background-color: #1a3d2a;
+            color: #56d364;
+            border-color: #238636;
         }
 
         .reviewer-badge-full {
@@ -1006,9 +1006,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         function calculateReviewScore(series) {
-            // Full review = +5, partial review = +1, open comments = -1
+            // Full review (comment) = +5, full review (original) = +3, partial review = +1, open comments = -1
             let score = 0;
-            score += (series.reviewers_full || []).length * 5;
+            score += (series.reviewers_full_comment || []).length * 5;
+            score += (series.reviewers_full_original || []).length * 3;
             score += (series.reviewers_partial || []).length * 1;
             score -= (series.commenters || []).length * 1;
             return score;
@@ -1348,17 +1349,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // External Reviewers and Commenters
             const reviewersEl = document.createElement('div');
             reviewersEl.className = 'series-checks';
-            // Show reviewers who reviewed ALL patches first
-            if (series.reviewers_full && series.reviewers_full.length > 0) {
-                series.reviewers_full.forEach(reviewer => {
+
+            // Show reviewers who reviewed ALL patches via comment (green background)
+            if (series.reviewers_full_comment && series.reviewers_full_comment.length > 0) {
+                series.reviewers_full_comment.forEach(reviewer => {
                     const badge = document.createElement('span');
-                    badge.className = 'reviewer-badge-full';
+                    badge.className = 'reviewer-badge-comment';  // Light green background, green border
                     badge.textContent = reviewer;
-                    badge.title = `Reviewed all patches: ${reviewer}`;
+                    badge.title = `Reviewed all patches (at least one via comment): ${reviewer}`;
                     reviewersEl.appendChild(badge);
                 });
             }
-            // Then show reviewers who reviewed SOME patches
+
+            // Show reviewers who reviewed ALL patches in original posts (gray background, green border)
+            if (series.reviewers_full_original && series.reviewers_full_original.length > 0) {
+                series.reviewers_full_original.forEach(reviewer => {
+                    const badge = document.createElement('span');
+                    badge.className = 'reviewer-badge-full';  // Gray background, green border
+                    badge.textContent = reviewer;
+                    badge.title = `Reviewed all patches (in original posts): ${reviewer}`;
+                    reviewersEl.appendChild(badge);
+                });
+            }
+
+            // Then show reviewers who reviewed SOME patches (partial)
             if (series.reviewers_partial && series.reviewers_partial.length > 0) {
                 series.reviewers_partial.forEach(reviewer => {
                     const badge = document.createElement('span');
@@ -1368,6 +1382,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     reviewersEl.appendChild(badge);
                 });
             }
+
             // Finally show commenters (people who commented without review tags)
             if (series.commenters && series.commenters.length > 0) {
                 series.commenters.forEach(commenter => {

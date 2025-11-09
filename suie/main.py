@@ -1060,9 +1060,10 @@ class SuieApp:
         author_email = submitter.get("email", "")
         author_company = self.dev_db.get_company(author_email)
 
-        # Track which reviewers reviewed which patches
-        # Use email as key to properly deduplicate, store name separately
-        reviewer_data = {}  # canonical_email -> {'name': str, 'patches': set}
+        # Track which reviewers reviewed which patches and the source
+        # Use name (normalized) as key to properly deduplicate across patches
+        # canonical_email -> {'name': str, 'patches': set, 'sources': set of ('original' or 'comment')}
+        reviewer_data = {}  # canonical_email -> data
         total_patches = len(series_score.patch_scores)
 
         for patch_score in series_score.patch_scores:
@@ -1071,113 +1072,151 @@ class SuieApp:
             if not patch:
                 continue
 
-            # Extract review tags with email addresses from the patch
-            # This preserves the full names as they appear in the patch
-
-            # Helper function to process review tags
-            def process_review_tag(value):
-                """Extract name and email from a review tag, process it"""
-                # Extract both name and email from "Name <email>" format
-                match = re.match(r"^(.+?)\s*<([^>]+)>", value)
-                if match:
-                    name = match.group(1).strip()
-                    email = match.group(2).strip()
-                else:
-                    # Try to extract just email
-                    email_match = re.search(
-                        r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
-                    )
-                    if email_match:
-                        email = email_match.group(1)
-                        name = self._extract_name_from_identity(email)
-                    else:
-                        return None, None
-
-                return name, email
-
-            def add_reviewer(name, email):
-                """Add or update reviewer in reviewer_data"""
-                # Check if this is an external reviewer
-                reviewer_company = self.dev_db.get_company(email)
-                if reviewer_company != author_company or author_company is None:
-                    # Get canonical email for deduplication
-                    canonical_id = self.dev_db.get_canonical_identity(email)
-                    canonical_email_match = re.search(r"<([^>]+)>", canonical_id)
-                    if canonical_email_match:
-                        canonical_email = canonical_email_match.group(1)
-                    else:
-                        canonical_email = email
-
-                    # Check if reviewer is in ml-stats (unless it's a bot)
-                    if not self.dev_db.is_bot(email):
-                        stats_key = self.dev_db._find_in_stats(email)
-                        if not stats_key:
-                            logger.info(
-                                "Reviewer %s (%s) not found in ml-stats for series #%d",
-                                name, email, series["id"]
-                            )
-
-                    # Add or update reviewer data
-                    if canonical_email not in reviewer_data:
-                        reviewer_data[canonical_email] = {
-                            'name': name,
-                            'patches': set()
-                        }
-                    # If we see a longer/better name, use it
-                    elif len(name) > len(reviewer_data[canonical_email]['name']):
-                        reviewer_data[canonical_email]['name'] = name
-
-                    reviewer_data[canonical_email]['patches'].add(patch_id)
-
-            # Check patch headers
-            headers = patch.get("headers", {})
-            tag_headers = ["Reviewed-by", "Acked-by", "Tested-by"]
-
-            for tag_type in tag_headers:
-                values = headers.get(tag_type, [])
-                if not isinstance(values, list):
-                    values = [values]
-
-                for value in values:
-                    name, email = process_review_tag(value)
-                    if name and email:
-                        add_reviewer(name, email)
-
-            # Check patch content for trailers
-            content = patch.get("content", "")
-            tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*(.+?)(?:\n|$)"
-            matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
-
-            for value in matches:
-                name, email = process_review_tag(value)
-                if name and email:
-                    add_reviewer(name, email)
-
-            # IMPORTANT: Also check comments for review tags
+            # Get reviewers with source information for this patch
             comments = self.state.get_patch_comments(patch_id)
-            for comment in comments:
-                comment_content = comment.get('content', '')
-                matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
+            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments)
 
-                for value in matches:
-                    name, email = process_review_tag(value)
-                    if name and email:
-                        add_reviewer(name, email)
+            # For each reviewer in this patch, track them at series level
+            for reviewer_name, source in reviewers_with_source.items():
+                # Try to find email from patch headers/content/comments
+                # This is needed to check if they're external and for deduplication
 
-        # Categorize reviewers: full (reviewed all patches) vs partial (reviewed some)
-        reviewers_full = []
-        reviewers_partial = []
+                # Search in patch headers
+                headers = patch.get("headers", {})
+                tag_headers = ["Reviewed-by", "Acked-by", "Tested-by"]
+
+                reviewer_email = None
+                for tag_type in tag_headers:
+                    values = headers.get(tag_type, [])
+                    if not isinstance(values, list):
+                        values = [values]
+
+                    for value in values:
+                        # Check if this value contains our reviewer's name
+                        if reviewer_name.lower() in value.lower():
+                            # Extract email
+                            email_match = re.search(r"<([^>]+)>", value)
+                            if email_match:
+                                reviewer_email = email_match.group(1).strip()
+                                break
+                            # Try bare email
+                            email_match = re.search(
+                                r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
+                            )
+                            if email_match:
+                                reviewer_email = email_match.group(1)
+                                break
+                    if reviewer_email:
+                        break
+
+                # Search in patch content if not found in headers
+                if not reviewer_email:
+                    content = patch.get("content", "")
+                    tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*(.+?)(?:\n|$)"
+                    matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
+
+                    for value in matches:
+                        if reviewer_name.lower() in value.lower():
+                            email_match = re.search(r"<([^>]+)>", value)
+                            if email_match:
+                                reviewer_email = email_match.group(1).strip()
+                                break
+                            email_match = re.search(
+                                r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
+                            )
+                            if email_match:
+                                reviewer_email = email_match.group(1)
+                                break
+
+                # Search in comments if still not found
+                if not reviewer_email:
+                    for comment in comments:
+                        comment_content = comment.get('content', '')
+                        matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
+
+                        for value in matches:
+                            if reviewer_name.lower() in value.lower():
+                                email_match = re.search(r"<([^>]+)>", value)
+                                if email_match:
+                                    reviewer_email = email_match.group(1).strip()
+                                    break
+                                email_match = re.search(
+                                    r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", value
+                                )
+                                if email_match:
+                                    reviewer_email = email_match.group(1)
+                                    break
+                        if reviewer_email:
+                            break
+
+                # Skip if we couldn't find an email
+                if not reviewer_email:
+                    continue
+
+                # Check if this is an external reviewer
+                reviewer_company = self.dev_db.get_company(reviewer_email)
+                if reviewer_company == author_company and author_company is not None:
+                    continue  # Skip internal reviewers
+
+                # Get canonical email for deduplication
+                canonical_id = self.dev_db.get_canonical_identity(reviewer_email)
+                canonical_email_match = re.search(r"<([^>]+)>", canonical_id)
+                if canonical_email_match:
+                    canonical_email = canonical_email_match.group(1)
+                else:
+                    canonical_email = reviewer_email
+
+                # Check if reviewer is in ml-stats (unless it's a bot)
+                if not self.dev_db.is_bot(reviewer_email):
+                    stats_key = self.dev_db._find_in_stats(reviewer_email)
+                    if not stats_key:
+                        logger.info(
+                            "Reviewer %s (%s) not found in ml-stats for series #%d",
+                            reviewer_name, reviewer_email, series["id"]
+                        )
+
+                # Add or update reviewer data
+                if canonical_email not in reviewer_data:
+                    reviewer_data[canonical_email] = {
+                        'name': reviewer_name,
+                        'patches': set(),
+                        'sources': set()
+                    }
+                # If we see a longer/better name, use it
+                elif len(reviewer_name) > len(reviewer_data[canonical_email]['name']):
+                    reviewer_data[canonical_email]['name'] = reviewer_name
+
+                reviewer_data[canonical_email]['patches'].add(patch_id)
+                reviewer_data[canonical_email]['sources'].add(source)
+
+        # Categorize reviewers with priority rules:
+        # Priority 1: If ANY patch has "comment" source -> reviewer is "comment" at series level
+        # Priority 2: Full review (all patches) with "original" only -> "original-full"
+        # Priority 3: Partial review -> "partial"
+
+        reviewers_full_comment = []    # Reviewed all patches, at least one via comment
+        reviewers_full_original = []   # Reviewed all patches, all in original posts
+        reviewers_partial = []         # Reviewed some patches
 
         for _canonical_email, data in reviewer_data.items():
             reviewer_name = data['name']
             patch_ids = data['patches']
-            if len(patch_ids) == total_patches:
-                reviewers_full.append(reviewer_name)
+            sources = data['sources']
+
+            is_full = len(patch_ids) == total_patches
+            has_comment = 'comment' in sources
+
+            if is_full:
+                if has_comment:
+                    reviewers_full_comment.append(reviewer_name)
+                else:
+                    reviewers_full_original.append(reviewer_name)
             else:
                 reviewers_partial.append(reviewer_name)
 
         # Sort reviewer lists
-        reviewers_full.sort()
+        reviewers_full_comment.sort()
+        reviewers_full_original.sort()
         reviewers_partial.sort()
 
         # Aggregate commenters (people who commented without review tags) at series level
@@ -1247,8 +1286,9 @@ class SuieApp:
             "state": series_state,
             "patches": patches_data,
             "delegates": delegates_in_series,
-            "reviewers_full": reviewers_full,
-            "reviewers_partial": reviewers_partial,
+            "reviewers_full_comment": reviewers_full_comment,     # All patches, at least one via comment
+            "reviewers_full_original": reviewers_full_original,   # All patches, all in original posts
+            "reviewers_partial": reviewers_partial,               # Reviewed some patches
             "commenters": series_commenters,
             "lore_url": lore_url,
             "patchwork_url": series.get("web_url"),
