@@ -512,13 +512,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-radius: 12px;
             font-size: 11px;
             font-weight: 600;
-            background-color: #e6f7eb;
+            background-color: #f0f0f0;
             color: #1b6635;
-            border: 2px solid #9cd4a8;
+            border: 2px solid #34d058;
         }
 
         [data-theme="dark"] .reviewer-badge-full {
-            background-color: #1c3426;
+            background-color: #2a2a2a;
             color: #6bdb86;
             border-color: #3a7a4d;
         }

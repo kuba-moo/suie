@@ -264,6 +264,14 @@ class SuieApp:
         Extract reviewer names with their source (original or comment).
         Looks for Reviewed-by, Acked-by, and Tested-by tags.
 
+        Priority rules:
+        - If review tag in comments → 'comment' (engaged via comment)
+        - If review tag in original AND person commented (without tag) → 'comment' (engaged)
+        - If review tag in original only → 'original' (passive review)
+
+        Match reviewers to commenters by name only (not email), as people may use
+        different email addresses for comments vs review tags.
+
         Args:
             patch: Patch data
             comments: List of comments for the patch
@@ -271,9 +279,16 @@ class SuieApp:
         Returns:
             Dictionary mapping reviewer name -> source ('original' or 'comment')
         """
-        reviewers = {}  # reviewer_name -> source
+        reviewers_original = {}  # name -> True
+        reviewers_comment = {}   # name -> True
+        commenters = set()       # Set of commenter names (commented without review tag)
 
-        # Extract from patch headers and content (original)
+        # Helper to normalize name for matching
+        def normalize_name(name):
+            """Normalize name for case-insensitive matching"""
+            return name.strip().lower()
+
+        # Extract from patch headers and content (original reviews)
         headers = patch.get("headers", {})
         tag_headers = ["Reviewed-by", "Acked-by", "Tested-by"]
 
@@ -288,17 +303,16 @@ class SuieApp:
                 if match:
                     name = match.group(1).strip()
                     if name:
-                        # Mark as original if not already seen, or if already seen as comment
-                        reviewers[name] = 'original'
+                        reviewers_original[normalize_name(name)] = name
                 else:
                     # Try to extract just email and use local part
                     email_match = re.search(r"([a-zA-Z0-9._%+-]+)@", value)
                     if email_match:
                         name = email_match.group(1)
                         if name:
-                            reviewers[name] = 'original'
+                            reviewers_original[normalize_name(name)] = name
 
-        # Check patch content for trailers (original)
+        # Check patch content for trailers (original reviews)
         content = patch.get("content", "")
         tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<|$)"
         matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
@@ -306,19 +320,68 @@ class SuieApp:
         for name in matches:
             name = name.strip()
             if name:
-                reviewers[name] = 'original'
+                reviewers_original[normalize_name(name)] = name
 
-        # Check comments for review tags (added later)
+        # Check comments for review tags (comment reviews)
         for comment in comments:
             comment_content = comment.get('content', '')
             matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
 
             for name in matches:
                 name = name.strip()
-                if name and name not in reviewers:  # Only add if not already marked as original
-                    reviewers[name] = 'comment'
+                if name:
+                    reviewers_comment[normalize_name(name)] = name
 
-        return reviewers
+        # Extract commenters (people who commented without review tags)
+        for comment in comments:
+            content = comment.get('content', '').strip()
+            if not content or len(content) < 20:  # Skip very short comments
+                continue
+
+            # Check if comment contains review tags - if so, skip (already tracked)
+            tag_pattern_check = r"(?:Reviewed-by|Acked-by|Tested-by):\s*"
+            if re.search(tag_pattern_check, content, re.IGNORECASE):
+                continue
+
+            # Extract submitter information
+            submitter = comment.get('submitter', {})
+            name = (submitter.get('name') or '').strip()
+
+            # If no name, try to extract from email
+            if not name:
+                email = submitter.get('email') or ''
+                if email:
+                    # Extract name from email local part
+                    local_match = re.match(r"([^@]+)@", email)
+                    if local_match:
+                        local_part = local_match.group(1)
+                        name = local_part.replace('.', ' ').replace('_', ' ')
+                        name = ' '.join(word.capitalize() for word in name.split())
+
+            if name:
+                commenters.add(normalize_name(name))
+
+        # Build final result with priority rules
+        result = {}  # name -> source
+
+        # Priority 1: Review tag in comments → 'comment'
+        for normalized_name, display_name in reviewers_comment.items():
+            result[display_name] = 'comment'
+
+        # Priority 2: Review tag in original
+        for normalized_name, display_name in reviewers_original.items():
+            # Skip if already in comments (priority 1)
+            if normalized_name in reviewers_comment:
+                continue
+
+            # If they also commented (without adding a tag) → 'comment' (engaged)
+            if normalized_name in commenters:
+                result[display_name] = 'comment'
+            else:
+                # Pure original review, no engagement → 'original'
+                result[display_name] = 'original'
+
+        return result
 
     @staticmethod
     def _extract_reviewer_names(patch: Dict) -> List[str]:
