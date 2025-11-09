@@ -1225,10 +1225,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             const authorNameEl = document.createElement('div');
             authorNameEl.textContent = series.author;
-            // Check if author is a maintainer (has ● marker)
-            const authorIsMaintainer = series.author.includes(' ●');
+            // Check if author is a maintainer (Ⓜ) or reviewer (Ⓡ)
+            const authorIsMaintainer = series.author.includes(' Ⓜ');
+            const authorIsReviewer = series.author.includes(' Ⓡ');
             if (authorIsMaintainer) {
                 authorNameEl.title = `${series.author} (Maintainer of modified paths)`;
+            } else if (authorIsReviewer) {
+                authorNameEl.title = `${series.author} (Reviewer of modified paths)`;
             } else {
                 authorNameEl.title = series.author;
             }
@@ -1425,10 +1428,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-comment';  // Light green background, green border
                     badge.textContent = reviewer;
-                    // Check if reviewer is a maintainer (has ● marker)
-                    const isMaintainer = reviewer.includes(' ●');
-                    const maintainerSuffix = isMaintainer ? ' (Maintainer of modified paths)' : '';
-                    badge.title = `Reviewed all patches (at least one via comment): ${reviewer}${maintainerSuffix}`;
+                    // Check if reviewer is a maintainer (Ⓜ) or reviewer (Ⓡ)
+                    const isMaintainer = reviewer.includes(' Ⓜ');
+                    const isReviewer = reviewer.includes(' Ⓡ');
+                    let suffix = '';
+                    if (isMaintainer) {
+                        suffix = ' (Maintainer of modified paths)';
+                    } else if (isReviewer) {
+                        suffix = ' (Reviewer of modified paths)';
+                    }
+                    badge.title = `Reviewed all patches (at least one via comment): ${reviewer}${suffix}`;
                     reviewersEl.appendChild(badge);
                 });
             }
@@ -1439,10 +1448,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-full';  // Gray background, green border
                     badge.textContent = reviewer;
-                    // Check if reviewer is a maintainer (has ● marker)
-                    const isMaintainer = reviewer.includes(' ●');
-                    const maintainerSuffix = isMaintainer ? ' (Maintainer of modified paths)' : '';
-                    badge.title = `Reviewed all patches (in original posts): ${reviewer}${maintainerSuffix}`;
+                    // Check if reviewer is a maintainer (Ⓜ) or reviewer (Ⓡ)
+                    const isMaintainer = reviewer.includes(' Ⓜ');
+                    const isReviewer = reviewer.includes(' Ⓡ');
+                    let suffix = '';
+                    if (isMaintainer) {
+                        suffix = ' (Maintainer of modified paths)';
+                    } else if (isReviewer) {
+                        suffix = ' (Reviewer of modified paths)';
+                    }
+                    badge.title = `Reviewed all patches (in original posts): ${reviewer}${suffix}`;
                     reviewersEl.appendChild(badge);
                 });
             }
@@ -1453,10 +1468,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-partial';
                     badge.textContent = reviewer;
-                    // Check if reviewer is a maintainer (has ● marker)
-                    const isMaintainer = reviewer.includes(' ●');
-                    const maintainerSuffix = isMaintainer ? ' (Maintainer of modified paths)' : '';
-                    badge.title = `Reviewed some patches: ${reviewer}${maintainerSuffix}`;
+                    // Check if reviewer is a maintainer (Ⓜ) or reviewer (Ⓡ)
+                    const isMaintainer = reviewer.includes(' Ⓜ');
+                    const isReviewer = reviewer.includes(' Ⓡ');
+                    let suffix = '';
+                    if (isMaintainer) {
+                        suffix = ' (Maintainer of modified paths)';
+                    } else if (isReviewer) {
+                        suffix = ' (Reviewer of modified paths)';
+                    }
+                    badge.title = `Reviewed some patches: ${reviewer}${suffix}`;
                     reviewersEl.appendChild(badge);
                 });
             }

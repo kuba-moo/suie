@@ -1158,19 +1158,21 @@ class SuieApp:
 
         return deduped
 
-    def _check_maintainer(self, email: str, paths: List[str]) -> bool:
+    def _check_maintainer(self, email: str, paths: List[str]) -> Optional[str]:
         """
-        Check if a person is a maintainer of any of the modified paths.
+        Check if a person is a maintainer or reviewer of any of the modified paths.
 
         Args:
             email: Email address to check
             paths: List of file paths
 
         Returns:
-            True if person is a maintainer of at least one path
+            'maintainer' if person is a maintainer (M:) of at least one path,
+            'reviewer' if person is a reviewer (R:) of at least one path,
+            None if neither
         """
         if not self.maintainers or not email or not paths:
-            return False
+            return None
 
         # Create a Person object for matching
         person_str = f"<{email}>"
@@ -1180,11 +1182,19 @@ class SuieApp:
         matching_entries = self.maintainers.find_by_paths(paths)
 
         # Check if this person is listed in any of the matching entries
+        # Prioritize maintainer role over reviewer role
+        is_reviewer = False
         for entry in matching_entries._list:
-            if entry.match_owner(person):
-                return True
+            # Check if they're in the maintainers list (M:)
+            for maintainer in entry.maintainers:
+                if person == maintainer:
+                    return 'maintainer'
+            # Check if they're in the reviewers list (R:)
+            for reviewer in entry.reviewers:
+                if person == reviewer:
+                    is_reviewer = True
 
-        return False
+        return 'reviewer' if is_reviewer else None
 
     @staticmethod
     def _extract_tree_designation(title: str) -> Optional[str]:
@@ -1639,10 +1649,12 @@ class SuieApp:
             is_full = len(patch_ids) == total_patches
             has_comment = 'comment' in sources
 
-            # Check if this reviewer is a maintainer of modified paths
-            reviewer_is_maintainer = self._check_maintainer(canonical_email, modified_paths)
-            if reviewer_is_maintainer:
-                reviewer_name = f"{reviewer_name} ●"
+            # Check if this reviewer is a maintainer or reviewer of modified paths
+            reviewer_role = self._check_maintainer(canonical_email, modified_paths)
+            if reviewer_role == 'maintainer':
+                reviewer_name = f"{reviewer_name} Ⓜ"
+            elif reviewer_role == 'reviewer':
+                reviewer_name = f"{reviewer_name} Ⓡ"
 
             if is_full:
                 if has_comment:
@@ -1699,14 +1711,16 @@ class SuieApp:
         date_normalized = self._normalize_date(series.get("date", ""))
         age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
 
-        # Check if author is a maintainer
-        author_is_maintainer = False
+        # Check if author is a maintainer or reviewer
+        author_role = None
         if author_email:
-            author_is_maintainer = self._check_maintainer(author_email, modified_paths)
+            author_role = self._check_maintainer(author_email, modified_paths)
 
-        # Mark author name with large dot if maintainer
-        if author_is_maintainer:
-            author_name = f"{author_name} ●"
+        # Mark author name with appropriate symbol based on role
+        if author_role == 'maintainer':
+            author_name = f"{author_name} Ⓜ"
+        elif author_role == 'reviewer':
+            author_name = f"{author_name} Ⓡ"
 
         # Find all previous versions of this series
         prev_versions = self._find_previous_versions(series)
