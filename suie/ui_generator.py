@@ -1168,7 +1168,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             const authorNameEl = document.createElement('div');
             authorNameEl.textContent = series.author;
-            authorNameEl.title = series.author;
+            // Check if author is a maintainer (has ● marker)
+            const authorIsMaintainer = series.author.includes(' ●');
+            if (authorIsMaintainer) {
+                authorNameEl.title = `${series.author} (Maintainer of modified paths)`;
+            } else {
+                authorNameEl.title = series.author;
+            }
             authorNameEl.style.overflow = 'hidden';
             authorNameEl.style.textOverflow = 'ellipsis';
             authorNameEl.style.whiteSpace = 'nowrap';
@@ -1362,7 +1368,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-comment';  // Light green background, green border
                     badge.textContent = reviewer;
-                    badge.title = `Reviewed all patches (at least one via comment): ${reviewer}`;
+                    // Check if reviewer is a maintainer (has ● marker)
+                    const isMaintainer = reviewer.includes(' ●');
+                    const maintainerSuffix = isMaintainer ? ' (Maintainer of modified paths)' : '';
+                    badge.title = `Reviewed all patches (at least one via comment): ${reviewer}${maintainerSuffix}`;
                     reviewersEl.appendChild(badge);
                 });
             }
@@ -1373,7 +1382,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-full';  // Gray background, green border
                     badge.textContent = reviewer;
-                    badge.title = `Reviewed all patches (in original posts): ${reviewer}`;
+                    // Check if reviewer is a maintainer (has ● marker)
+                    const isMaintainer = reviewer.includes(' ●');
+                    const maintainerSuffix = isMaintainer ? ' (Maintainer of modified paths)' : '';
+                    badge.title = `Reviewed all patches (in original posts): ${reviewer}${maintainerSuffix}`;
                     reviewersEl.appendChild(badge);
                 });
             }
@@ -1384,7 +1396,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-partial';
                     badge.textContent = reviewer;
-                    badge.title = `Reviewed some patches: ${reviewer}`;
+                    // Check if reviewer is a maintainer (has ● marker)
+                    const isMaintainer = reviewer.includes(' ●');
+                    const maintainerSuffix = isMaintainer ? ' (Maintainer of modified paths)' : '';
+                    badge.title = `Reviewed some patches: ${reviewer}${maintainerSuffix}`;
                     reviewersEl.appendChild(badge);
                 });
             }
