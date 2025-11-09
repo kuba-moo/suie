@@ -794,6 +794,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <label for="tree-filter">Tree:</label>
                     <select id="tree-filter">
                         <option value="">All</option>
+                        <option value="__none__">No tree</option>
                         {% for tree in tree_designations %}
                         <option value="{{ tree }}">{{ tree }}</option>
                         {% endfor %}
@@ -1013,8 +1014,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                 // Apply tree designation filter
                 if (treeFilter) {
-                    if (series.tree_designation !== treeFilter) {
-                        return false;
+                    if (treeFilter === '__none__') {
+                        // Show only series with no tree designation
+                        if (series.tree_designation) {
+                            return false;
+                        }
+                    } else {
+                        // Show only series with matching tree designation
+                        if (series.tree_designation !== treeFilter) {
+                            return false;
+                        }
                     }
                 }
 

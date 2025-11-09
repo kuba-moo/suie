@@ -1223,6 +1223,9 @@ class SuieApp:
             # - Version numbers: v1, v2, V3, etc.
             # - Patch numbers: 1/2, 3/5, etc.
             # - PATCH keyword
+            # - RFC keyword
+            # - GIT keyword
+            # - PULL keyword
             filtered_parts = []
             for part in parts:
                 part = part.strip()
@@ -1234,8 +1237,8 @@ class SuieApp:
                 # Check if it's a patch number (e.g., 1/2, 3/5)
                 if re.match(r'^\d+\/\d+$', part):
                     continue
-                # Check if it's "PATCH" keyword
-                if part.upper() == 'PATCH':
+                # Check if it's "PATCH", "RFC", "GIT", or "PULL" keyword
+                if part.upper() in ('PATCH', 'RFC', 'GIT', 'PULL'):
                     continue
                 filtered_parts.append(part)
 
@@ -1243,12 +1246,12 @@ class SuieApp:
             if filtered_parts:
                 return filtered_parts[0]
         else:
-            # Single part, use as-is (unless it's a version, patch number, or PATCH keyword)
+            # Single part, use as-is (unless it's a version, patch number, PATCH, RFC, GIT, or PULL keyword)
             if re.match(r'^v\d+$', bracket_content, re.IGNORECASE):
                 return None
             if re.match(r'^\d+\/\d+$', bracket_content):
                 return None
-            if bracket_content.upper() == 'PATCH':
+            if bracket_content.upper() in ('PATCH', 'RFC', 'GIT', 'PULL'):
                 return None
             return bracket_content
 

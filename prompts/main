@@ -163,4 +163,4 @@ When user clicks on the ID of the series the ID should be copied into the clipbo
 
 When the series title does not contain tree designation look for it in the first patch.
 
-Add the ability to filter by the designated tree.
+Add the ability to filter by the designated tree. When finding tree designation ignore "RFC", "GIT" and "PULL" it's not a tree. Also add to the filter an option for showing just series which did not have any tree designation.
