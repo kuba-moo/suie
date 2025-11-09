@@ -1047,6 +1047,7 @@ class SuieApp:
         return {
             "id": series["id"],
             "title": series.get("name") or "No title",
+            "version": series.get("version", 1),
             "author": author_name,
             "author_company": author_company,
             "date": date_normalized,

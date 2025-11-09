@@ -1190,12 +1190,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 badgesContainer.appendChild(treeBadge);
             }
 
-            // Add patch count badge
-            const patchCountBadge = document.createElement('span');
-            patchCountBadge.className = 'patch-count-badge';
-            patchCountBadge.textContent = series.patches.length;
-            patchCountBadge.title = `${series.patches.length} patch${series.patches.length !== 1 ? 'es' : ''} in this series`;
-            badgesContainer.appendChild(patchCountBadge);
+            // Add version badge if version > 1
+            if (series.version && series.version > 1) {
+                const versionBadge = document.createElement('span');
+                versionBadge.className = 'tree-badge';
+                versionBadge.textContent = `v${series.version}`;
+                versionBadge.title = `Version ${series.version}`;
+                badgesContainer.appendChild(versionBadge);
+            }
+
+            // Add patch count badge only if more than 1 patch
+            if (series.patches.length > 1) {
+                const patchCountBadge = document.createElement('span');
+                patchCountBadge.className = 'patch-count-badge';
+                patchCountBadge.textContent = series.patches.length;
+                patchCountBadge.title = `${series.patches.length} patches in this series`;
+                badgesContainer.appendChild(patchCountBadge);
+            }
 
             titleContainerEl.appendChild(badgesContainer);
 
