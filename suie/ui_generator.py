@@ -627,6 +627,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-color: #2d4a5e;
         }
 
+        .maintainer-icon,
+        .reviewer-icon {
+            font-size: 0.6em;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
         .expand-icon {
             transition: transform 0.2s;
             font-size: 18px;
@@ -1224,7 +1231,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             authorEl.style.gap = '4px';
 
             const authorNameEl = document.createElement('div');
-            authorNameEl.textContent = series.author;
+            // Wrap Ⓜ and Ⓡ symbols in styled spans
+            let authorHtml = escapeHtml(series.author);
+            authorHtml = authorHtml.replace(/ Ⓜ/g, ' <span class="maintainer-icon">Ⓜ</span>');
+            authorHtml = authorHtml.replace(/ Ⓡ/g, ' <span class="reviewer-icon">Ⓡ</span>');
+            authorNameEl.innerHTML = authorHtml;
+
             // Check if author is a maintainer (Ⓜ) or reviewer (Ⓡ)
             const authorIsMaintainer = series.author.includes(' Ⓜ');
             const authorIsReviewer = series.author.includes(' Ⓡ');
@@ -1427,7 +1439,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 series.reviewers_full_comment.forEach(reviewer => {
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-comment';  // Light green background, green border
-                    badge.textContent = reviewer;
+
+                    // Wrap Ⓜ and Ⓡ symbols in styled spans
+                    let reviewerHtml = escapeHtml(reviewer);
+                    reviewerHtml = reviewerHtml.replace(/ Ⓜ/g, ' <span class="maintainer-icon">Ⓜ</span>');
+                    reviewerHtml = reviewerHtml.replace(/ Ⓡ/g, ' <span class="reviewer-icon">Ⓡ</span>');
+                    badge.innerHTML = reviewerHtml;
+
                     // Check if reviewer is a maintainer (Ⓜ) or reviewer (Ⓡ)
                     const isMaintainer = reviewer.includes(' Ⓜ');
                     const isReviewer = reviewer.includes(' Ⓡ');
@@ -1447,7 +1465,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 series.reviewers_full_original.forEach(reviewer => {
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-full';  // Gray background, green border
-                    badge.textContent = reviewer;
+
+                    // Wrap Ⓜ and Ⓡ symbols in styled spans
+                    let reviewerHtml = escapeHtml(reviewer);
+                    reviewerHtml = reviewerHtml.replace(/ Ⓜ/g, ' <span class="maintainer-icon">Ⓜ</span>');
+                    reviewerHtml = reviewerHtml.replace(/ Ⓡ/g, ' <span class="reviewer-icon">Ⓡ</span>');
+                    badge.innerHTML = reviewerHtml;
+
                     // Check if reviewer is a maintainer (Ⓜ) or reviewer (Ⓡ)
                     const isMaintainer = reviewer.includes(' Ⓜ');
                     const isReviewer = reviewer.includes(' Ⓡ');
@@ -1467,7 +1491,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 series.reviewers_partial.forEach(reviewer => {
                     const badge = document.createElement('span');
                     badge.className = 'reviewer-badge-partial';
-                    badge.textContent = reviewer;
+
+                    // Wrap Ⓜ and Ⓡ symbols in styled spans
+                    let reviewerHtml = escapeHtml(reviewer);
+                    reviewerHtml = reviewerHtml.replace(/ Ⓜ/g, ' <span class="maintainer-icon">Ⓜ</span>');
+                    reviewerHtml = reviewerHtml.replace(/ Ⓡ/g, ' <span class="reviewer-icon">Ⓡ</span>');
+                    badge.innerHTML = reviewerHtml;
+
                     // Check if reviewer is a maintainer (Ⓜ) or reviewer (Ⓡ)
                     const isMaintainer = reviewer.includes(' Ⓜ');
                     const isReviewer = reviewer.includes(' Ⓡ');
@@ -1813,6 +1843,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 const genTime = new Date(generatedAt);
                 document.getElementById('generated-time').textContent = formatRelativeTime(genTime);
             }, 60000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>
