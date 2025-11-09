@@ -1,6 +1,7 @@
 """Main application entry point for Suie"""
 
 import argparse
+import fnmatch
 import logging
 import re
 import sys
@@ -8,6 +9,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
+import requests
 import yaml
 
 from .patchwork_client import PatchworkClient
@@ -18,6 +20,175 @@ from .ui_generator import UIGenerator
 
 
 logger = logging.getLogger(__name__)
+
+
+class Person:
+    """Person representation for maintainer matching"""
+    def __init__(self, name_email):
+        self.name_email = name_email
+        self.name, self.email = self.name_email_split(name_email)
+
+    @staticmethod
+    def name_email_split(name_email):
+        idx = name_email.rfind('<')
+        if idx > 1:
+            idx = name_email.rfind('<')
+            name = name_email[:idx].strip()
+            email = name_email[idx + 1:-1].strip()
+        else:
+            if idx > -1:
+                name_email = name_email[idx + 1:-1]
+            name = ''
+            email = name_email
+        if '+' in email and email.find('+') < email.find('@'):
+            pidx = email.find('+')
+            didx = email.find('@')
+            email = email[:pidx] + email[didx:]
+
+        return name, email
+
+    def __eq__(self, other):
+        if self.name_email == other:
+            return True
+        _, email = self.name_email_split(other)
+        return self.email == email
+
+
+class MaintainersEntry:
+    """Entry in MAINTAINERS file"""
+    def __init__(self, lines):
+        self._raw = lines
+
+        self.title = lines[0]
+        self.maintainers = []
+        self.reviewers = []
+        self.files = []
+
+        for line in lines[1:]:
+            if line[:3] == 'M:\t':
+                self.maintainers.append(Person(line[3:]))
+            elif line[:3] == 'R:\t':
+                self.reviewers.append(Person(line[3:]))
+            elif line[:3] == 'F:\t':
+                self.files.append(line[3:])
+
+        self._owners = self.maintainers + self.reviewers
+
+        self._file_match = []
+        self._file_pfx = []
+        for F in self.files:
+            # Strip trailing wildcard, it's implicit and slows down the match
+            if F.endswith('*'):
+                F = F[:-1]
+            if '?' in F or '*' in F or '[' in F:
+                self._file_match.append(F)
+            else:
+                self._file_pfx.append(F)
+
+    def match_owner(self, person):
+        for M in self._owners:
+            if person == M:
+                return True
+        return False
+
+    def match_path(self, path):
+        for F in self._file_pfx:
+            if path.startswith(F):
+                return True
+        for F in self._file_match:
+            if fnmatch.fnmatch(path, F):
+                return True
+        return False
+
+
+class MaintainersList:
+    """List of maintainer entries"""
+    def __init__(self):
+        self._list = []
+
+    def __len__(self):
+        return len(self._list)
+
+    def add(self, other):
+        self._list.append(other)
+
+    def find_by_paths(self, paths):
+        ret = MaintainersList()
+        for entry in self._list:
+            for path in paths:
+                if entry.match_path(path):
+                    ret.add(entry)
+                    break
+        return ret
+
+    def find_by_owner(self, person):
+        ret = MaintainersList()
+        for entry in self._list:
+            if entry.match_owner(person):
+                ret.add(entry)
+        return ret
+
+
+class Maintainers:
+    """Parser for kernel MAINTAINERS file"""
+    def __init__(self, *, file=None, url=None, config=None):
+        self.entries = MaintainersList()
+
+        self.http_headers = None
+        if config:
+            ua = config.get('patchwork', {}).get('user_agent', '')
+            if ua:
+                self.http_headers = {"user-agent": ua}
+
+        if file:
+            self._load_from_file(file)
+        elif url:
+            self._load_from_url(url)
+
+    def _load_from_lines(self, lines):
+        group = []
+        started = False
+        for line in lines:
+            # Skip the "intro" section of MAINTAINERS
+            started |= line.isupper()
+            if not started:
+                continue
+
+            # Fix up tabs vs spaces
+            if len(line) > 5 and line[0].isupper() and line[1:4] == ':  ':
+                logger.debug("Bad attr line: %s %s", group, line.strip())
+                line = line[:2] + '\t' + line[2:].strip()
+
+            if line == '':
+                if len(group) > 1:
+                    self.entries.add(MaintainersEntry(group))
+                    group = []
+                else:
+                    if group:
+                        logger.debug('Empty group: %s', group)
+            elif (len(line) > 3 and line[1:3] == ':\t') or len(group) == 0:
+                group.append(line.strip())
+            else:
+                logger.debug("Bad group: %s %s", group, line.strip())
+                group = [line.strip()]
+
+    def _load_from_file(self, file):
+        with open(file, 'r') as f:
+            self._load_from_lines(f.read().split('\n'))
+
+    def _load_from_url(self, url):
+        r = requests.get(url, headers=self.http_headers)
+        data = r.content.decode('utf-8')
+        self._load_from_lines(data.split('\n'))
+
+    def find_by_path(self, path):
+        return self.entries.find_by_paths([path])
+
+    def find_by_paths(self, paths):
+        return self.entries.find_by_paths(paths)
+
+    def find_by_owner(self, person):
+        return self.entries.find_by_owner(person)
 
 
 class SuieApp:
@@ -67,6 +238,26 @@ class SuieApp:
             expected_checks=self.config["ui"].get("expected_checks", []),
             tracking_scripts=self.config["ui"].get("tracking_scripts", []),
         )
+
+        # Load MAINTAINERS file if configured
+        self.maintainers = None
+        maintainers_config = self.config.get("maintainers", {})
+        if maintainers_config.get("enabled", False):
+            maintainers_file = maintainers_config.get("file")
+            maintainers_url = maintainers_config.get("url")
+
+            try:
+                if maintainers_file:
+                    logger.info("Loading MAINTAINERS from file: %s", maintainers_file)
+                    self.maintainers = Maintainers(file=maintainers_file, config=self.config)
+                elif maintainers_url:
+                    logger.info("Loading MAINTAINERS from URL: %s", maintainers_url)
+                    self.maintainers = Maintainers(url=maintainers_url, config=self.config)
+
+                if self.maintainers:
+                    logger.info("Loaded %d MAINTAINERS entries", len(self.maintainers.entries))
+            except Exception as e:
+                logger.warning("Failed to load MAINTAINERS: %s", e)
 
         logger.info("Suie initialized successfully")
 
@@ -844,6 +1035,75 @@ class SuieApp:
         sorted_versions = sorted(matches_by_version.items(), key=lambda x: x[0])
         return [series_data for _version, series_data in sorted_versions]
 
+    @staticmethod
+    def _parse_diff_for_paths(diff_content: str) -> List[str]:
+        """
+        Parse a git diff to extract modified file paths.
+
+        Args:
+            diff_content: Git diff content
+
+        Returns:
+            List of modified file paths
+        """
+        paths = []
+
+        # Look for diff --git a/path b/path lines
+        # or +++ b/path lines
+        for line in diff_content.split('\n'):
+            # Match diff --git a/path b/path
+            git_match = re.match(r'^diff --git a/(.+) b/.+$', line)
+            if git_match:
+                path = git_match.group(1)
+                if path != '/dev/null':  # Skip deletions
+                    paths.append(path)
+                continue
+
+            # Match +++ b/path (fallback)
+            plus_match = re.match(r'^\+\+\+ b/(.+)$', line)
+            if plus_match:
+                path = plus_match.group(1)
+                if path != '/dev/null':  # Skip deletions
+                    paths.append(path)
+
+        # Deduplicate while preserving order
+        seen = set()
+        deduped = []
+        for path in paths:
+            if path not in seen:
+                seen.add(path)
+                deduped.append(path)
+
+        return deduped
+
+    def _check_maintainer(self, email: str, paths: List[str]) -> bool:
+        """
+        Check if a person is a maintainer of any of the modified paths.
+
+        Args:
+            email: Email address to check
+            paths: List of file paths
+
+        Returns:
+            True if person is a maintainer of at least one path
+        """
+        if not self.maintainers or not email or not paths:
+            return False
+
+        # Create a Person object for matching
+        person_str = f"<{email}>"
+        person = Person(person_str)
+
+        # Find all maintainer entries for these paths
+        matching_entries = self.maintainers.find_by_paths(paths)
+
+        # Check if this person is listed in any of the matching entries
+        for entry in matching_entries._list:
+            if entry.match_owner(person):
+                return True
+
+        return False
+
     def _prepare_series_data(self, series: Dict, series_score: SeriesScore) -> Dict:
         """Prepare series data for UI"""
         expected_checks = self.config["ui"].get("expected_checks", [])
@@ -1060,6 +1320,20 @@ class SuieApp:
         author_email = submitter.get("email", "")
         author_company = self.dev_db.get_company(author_email)
 
+        # Parse patch diffs to extract modified paths (for maintainer checking)
+        modified_paths = []
+        for patch_score in series_score.patch_scores:
+            patch_id = patch_score.patch_id
+            patch = self.state.patches.get(patch_id)
+            if patch:
+                diff_content = patch.get("diff", "")
+                if diff_content:
+                    patch_paths = self._parse_diff_for_paths(diff_content)
+                    modified_paths.extend(patch_paths)
+
+        # Deduplicate paths
+        modified_paths = list(set(modified_paths))
+
         # Track which reviewers reviewed which patches and the source
         # Use name (normalized) as key to properly deduplicate across patches
         # canonical_email -> {'name': str, 'patches': set, 'sources': set of ('original' or 'comment')}
@@ -1198,13 +1472,18 @@ class SuieApp:
         reviewers_full_original = []   # Reviewed all patches, all in original posts
         reviewers_partial = []         # Reviewed some patches
 
-        for _canonical_email, data in reviewer_data.items():
+        for canonical_email, data in reviewer_data.items():
             reviewer_name = data['name']
             patch_ids = data['patches']
             sources = data['sources']
 
             is_full = len(patch_ids) == total_patches
             has_comment = 'comment' in sources
+
+            # Check if this reviewer is a maintainer of modified paths
+            reviewer_is_maintainer = self._check_maintainer(canonical_email, modified_paths)
+            if reviewer_is_maintainer:
+                reviewer_name = f"· {reviewer_name}"
 
             if is_full:
                 if has_comment:
@@ -1245,6 +1524,15 @@ class SuieApp:
         # Calculate age excluding weekends
         date_normalized = self._normalize_date(series.get("date", ""))
         age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
+
+        # Check if author is a maintainer
+        author_is_maintainer = False
+        if author_email:
+            author_is_maintainer = self._check_maintainer(author_email, modified_paths)
+
+        # Mark author name with middle dot if maintainer
+        if author_is_maintainer:
+            author_name = f"· {author_name}"
 
         # Find all previous versions of this series
         prev_versions = self._find_previous_versions(series)
