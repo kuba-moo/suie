@@ -1520,7 +1520,7 @@ class SuieApp:
             # Check if this reviewer is a maintainer of modified paths
             reviewer_is_maintainer = self._check_maintainer(canonical_email, modified_paths)
             if reviewer_is_maintainer:
-                reviewer_name = f"· {reviewer_name}"
+                reviewer_name = f"{reviewer_name} ●"
 
             if is_full:
                 if has_comment:
@@ -1545,8 +1545,8 @@ class SuieApp:
         # Build set of all reviewer names (normalized for comparison)
         all_reviewer_names = set()
         for reviewer_name in (reviewers_full_comment + reviewers_full_original + reviewers_partial):
-            # Remove the maintainer marker (·) if present for comparison
-            clean_name = reviewer_name.replace("· ", "").strip().lower()
+            # Remove the maintainer marker (●) if present for comparison
+            clean_name = reviewer_name.replace(" ●", "").strip().lower()
             all_reviewer_names.add(clean_name)
 
         # Filter out commenters who are also reviewers (reviewers have priority)
@@ -1582,9 +1582,9 @@ class SuieApp:
         if author_email:
             author_is_maintainer = self._check_maintainer(author_email, modified_paths)
 
-        # Mark author name with middle dot if maintainer
+        # Mark author name with large dot if maintainer
         if author_is_maintainer:
-            author_name = f"· {author_name}"
+            author_name = f"{author_name} ●"
 
         # Find all previous versions of this series
         prev_versions = self._find_previous_versions(series)
