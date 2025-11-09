@@ -744,20 +744,20 @@ class SuieApp:
 
         return checks_by_context
 
-    def _find_previous_version(self, series: Dict) -> Optional[Dict]:
+    def _find_previous_versions(self, series: Dict) -> List[Dict]:
         """
-        Find the previous version of a series by matching title.
+        Find all previous versions of a series by matching title.
 
         Looks for series with:
         - Same title (ignoring version numbers in square brackets)
-        - Lower version number OR older date if versions are equal
+        - Lower version number
         - Different series ID
 
         Args:
             series: Current series data
 
         Returns:
-            Previous version series data, or None if not found
+            List of previous version series data, sorted by version (ascending)
         """
         current_id = series["id"]
         current_version = series.get("version", 1)
@@ -783,12 +783,11 @@ class SuieApp:
         current_title_normalized = normalize_title(current_title)
 
         if not current_title_normalized:
-            return None
+            return []
 
         # Search through all known series (including inactive ones)
-        best_match = None
-        best_match_version = 0
-        best_match_date = None
+        # Keep track of all matching versions
+        matches_by_version = {}  # version -> series_data
 
         for candidate_id, candidate in self.state.series.items():
             # Skip the current series
@@ -810,7 +809,7 @@ class SuieApp:
             if candidate_version >= current_version:
                 continue
 
-            # Parse dates for comparison
+            # Parse dates for comparison (for deduplication)
             try:
                 if candidate_date_str.endswith("Z"):
                     candidate_date = datetime.fromisoformat(candidate_date_str.replace("Z", "+00:00"))
@@ -821,18 +820,29 @@ class SuieApp:
             except (ValueError, AttributeError):
                 candidate_date = None
 
-            # Track the best match (highest version number among previous versions)
-            if candidate_version > best_match_version:
-                best_match = candidate
-                best_match_version = candidate_version
-                best_match_date = candidate_date
-            elif candidate_version == best_match_version and candidate_date and best_match_date:
-                # If same version, prefer the newer one
-                if candidate_date > best_match_date:
-                    best_match = candidate
-                    best_match_date = candidate_date
+            # If we already have this version, keep the newer one
+            if candidate_version in matches_by_version:
+                existing = matches_by_version[candidate_version]
+                existing_date_str = existing.get("date", "")
+                try:
+                    if existing_date_str.endswith("Z"):
+                        existing_date = datetime.fromisoformat(existing_date_str.replace("Z", "+00:00"))
+                    elif "+" in existing_date_str:
+                        existing_date = datetime.fromisoformat(existing_date_str)
+                    else:
+                        existing_date = datetime.fromisoformat(existing_date_str).replace(tzinfo=timezone.utc)
+                except (ValueError, AttributeError):
+                    existing_date = None
 
-        return best_match
+                # Keep the newer one
+                if candidate_date and existing_date and candidate_date > existing_date:
+                    matches_by_version[candidate_version] = candidate
+            else:
+                matches_by_version[candidate_version] = candidate
+
+        # Sort by version number (ascending)
+        sorted_versions = sorted(matches_by_version.items(), key=lambda x: x[0])
+        return [series_data for _version, series_data in sorted_versions]
 
     def _prepare_series_data(self, series: Dict, series_score: SeriesScore) -> Dict:
         """Prepare series data for UI"""
@@ -1197,28 +1207,35 @@ class SuieApp:
         date_normalized = self._normalize_date(series.get("date", ""))
         age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
 
-        # Find previous version of this series
-        prev_version = self._find_previous_version(series)
-        prev_lore_url = None
-        if prev_version:
-            # Get lore URL for previous version
-            prev_lore_url = prev_version.get("list_archive_url")
+        # Find all previous versions of this series
+        prev_versions = self._find_previous_versions(series)
+        prev_versions_data = []
+
+        for prev_series in prev_versions:
+            # Get lore URL for this previous version
+            prev_lore_url = prev_series.get("list_archive_url")
             if not prev_lore_url:
                 # Try cover letter
-                prev_cover = self.state.get_cover_letter(prev_version["id"])
+                prev_cover = self.state.get_cover_letter(prev_series["id"])
                 if prev_cover:
                     prev_lore_url = prev_cover.get("list_archive_url")
                 # If still no URL, try first patch
                 if not prev_lore_url:
-                    prev_patches = self.state.get_series_patches(prev_version["id"])
+                    prev_patches = self.state.get_series_patches(prev_series["id"])
                     if prev_patches:
                         prev_lore_url = prev_patches[0].get("list_archive_url")
+
+            if prev_lore_url:
+                prev_versions_data.append({
+                    "version": prev_series.get("version", 1),
+                    "lore_url": prev_lore_url
+                })
 
         return {
             "id": series["id"],
             "title": series.get("name") or "No title",
             "version": series.get("version", 1),
-            "prev_lore_url": prev_lore_url,
+            "prev_versions": prev_versions_data,  # List of {version, lore_url}
             "author": author_name,
             "author_company": author_company,
             "date": date_normalized,

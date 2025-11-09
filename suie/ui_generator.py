@@ -1190,22 +1190,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 badgesContainer.appendChild(treeBadge);
             }
 
-            // Add version badge if version > 1
-            if (series.version && series.version > 1) {
-                const versionBadge = document.createElement('span');
-                versionBadge.className = 'tree-badge';
-                versionBadge.textContent = `v${series.version}`;
-                versionBadge.title = `Version ${series.version}`;
-                badgesContainer.appendChild(versionBadge);
-
-                // Add "prev" link badge if previous version URL is available
-                if (series.prev_lore_url) {
+            // Add previous version badges (clickable links to lore), then current version
+            // Sort: v1, v2, v3, ..., vN (current) - left to right
+            if (series.prev_versions && series.prev_versions.length > 0) {
+                // Add each previous version as clickable badge
+                series.prev_versions.forEach(prevVer => {
                     const prevBadge = document.createElement('a');
-                    prevBadge.href = series.prev_lore_url;
+                    prevBadge.href = prevVer.lore_url;
                     prevBadge.target = '_blank';
                     prevBadge.className = 'tree-badge';
-                    prevBadge.textContent = 'prev';
-                    prevBadge.title = `View version ${series.version - 1}`;
+                    prevBadge.textContent = `v${prevVer.version}`;
+                    prevBadge.title = `View version ${prevVer.version}`;
                     prevBadge.style.cursor = 'pointer';
                     prevBadge.style.textDecoration = 'none';
                     prevBadge.addEventListener('click', (e) => e.stopPropagation());
@@ -1218,7 +1213,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         prevBadge.style.textDecoration = 'none';
                     });
                     badgesContainer.appendChild(prevBadge);
-                }
+                });
+
+                // Add current version badge (not clickable)
+                const versionBadge = document.createElement('span');
+                versionBadge.className = 'tree-badge';
+                versionBadge.textContent = `v${series.version}`;
+                versionBadge.title = `Version ${series.version} (current)`;
+                badgesContainer.appendChild(versionBadge);
+            } else if (series.version && series.version > 1) {
+                // No previous versions found, but version > 1, show current version only
+                const versionBadge = document.createElement('span');
+                versionBadge.className = 'tree-badge';
+                versionBadge.textContent = `v${series.version}`;
+                versionBadge.title = `Version ${series.version}`;
+                badgesContainer.appendChild(versionBadge);
             }
 
             // Add patch count badge only if more than 1 patch
