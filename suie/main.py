@@ -1500,11 +1500,26 @@ class SuieApp:
 
         # Aggregate commenters (people who commented without review tags) at series level
         # Track commenters who commented on at least one patch without providing tags
+        # IMPORTANT: Exclude anyone who has review tags anywhere (reviewers have priority)
         all_commenters = set()
         for patch_data in patches_data:
             all_commenters.update(patch_data["commenters"])
 
-        series_commenters = sorted(list(all_commenters))
+        # Build set of all reviewer names (normalized for comparison)
+        all_reviewer_names = set()
+        for reviewer_name in (reviewers_full_comment + reviewers_full_original + reviewers_partial):
+            # Remove the maintainer marker (·) if present for comparison
+            clean_name = reviewer_name.replace("· ", "").strip().lower()
+            all_reviewer_names.add(clean_name)
+
+        # Filter out commenters who are also reviewers (reviewers have priority)
+        series_commenters = []
+        for commenter in all_commenters:
+            clean_commenter = commenter.strip().lower()
+            if clean_commenter not in all_reviewer_names:
+                series_commenters.append(commenter)
+
+        series_commenters.sort()
 
         # Get Lore URL - try cover letter first, then first patch
         lore_url = series.get("list_archive_url")
