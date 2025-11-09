@@ -150,3 +150,5 @@ Make it possible to sort the list by ID, age, reviews, score and checks. One cli
 Add a filter to hide patches newer than specified number of hours (by age during weekdays). The granularity of number of hours should be 3.
 
 Correct the review vs comment logic. Match reviewers to commenters purely on their name (not the email address), people sometimes send email from a different address than they use in the tags. The rules / priority of the states are, again, if the patch was sent with the review already present it's in the gray backgrand / green border state. If reviewer comments it goes into comments received, if reviewer sends a review tag that puts the patch into reviewed state (even if reviewer comments again).
+
+Try to match series to their previous revision. When new series is created check if you already know about a series (in the local state) which has the same title. Note that the previous revision is most likely already inactive. If you find a match add a badge next to the version (right of the title) called "prev". Clicking it should open archive link of that series.

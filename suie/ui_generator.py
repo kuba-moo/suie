@@ -1197,6 +1197,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 versionBadge.textContent = `v${series.version}`;
                 versionBadge.title = `Version ${series.version}`;
                 badgesContainer.appendChild(versionBadge);
+
+                // Add "prev" link badge if previous version URL is available
+                if (series.prev_lore_url) {
+                    const prevBadge = document.createElement('a');
+                    prevBadge.href = series.prev_lore_url;
+                    prevBadge.target = '_blank';
+                    prevBadge.className = 'tree-badge';
+                    prevBadge.textContent = 'prev';
+                    prevBadge.title = `View version ${series.version - 1}`;
+                    prevBadge.style.cursor = 'pointer';
+                    prevBadge.style.textDecoration = 'none';
+                    prevBadge.addEventListener('click', (e) => e.stopPropagation());
+                    prevBadge.addEventListener('mouseover', () => {
+                        prevBadge.style.opacity = '0.8';
+                        prevBadge.style.textDecoration = 'underline';
+                    });
+                    prevBadge.addEventListener('mouseout', () => {
+                        prevBadge.style.opacity = '1';
+                        prevBadge.style.textDecoration = 'none';
+                    });
+                    badgesContainer.appendChild(prevBadge);
+                }
             }
 
             // Add patch count badge only if more than 1 patch

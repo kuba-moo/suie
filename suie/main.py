@@ -744,6 +744,96 @@ class SuieApp:
 
         return checks_by_context
 
+    def _find_previous_version(self, series: Dict) -> Optional[Dict]:
+        """
+        Find the previous version of a series by matching title.
+
+        Looks for series with:
+        - Same title (ignoring version numbers in square brackets)
+        - Lower version number OR older date if versions are equal
+        - Different series ID
+
+        Args:
+            series: Current series data
+
+        Returns:
+            Previous version series data, or None if not found
+        """
+        current_id = series["id"]
+        current_version = series.get("version", 1)
+        current_title = series.get("name") or ""
+
+        # Normalize title by removing version prefix like "v2" or "[PATCH v3]"
+        # and tree designation like "[net-next]"
+        def normalize_title(title):
+            # Handle None or empty title
+            if not title:
+                return ""
+
+            # Remove [PATCH vX] or [PATCH vX NN/MM] patterns
+            title = re.sub(r'\[PATCH\s+v\d+(?:\s+\d+/\d+)?\]', '', title, flags=re.IGNORECASE)
+            # Remove [vX] patterns
+            title = re.sub(r'\[v\d+\]', '', title, flags=re.IGNORECASE)
+            # Remove tree designation like [net-next], [net], etc.
+            title = re.sub(r'\[[a-z0-9_-]+\]', '', title, flags=re.IGNORECASE)
+            # Clean up extra whitespace
+            title = re.sub(r'\s+', ' ', title).strip()
+            return title.lower()
+
+        current_title_normalized = normalize_title(current_title)
+
+        if not current_title_normalized:
+            return None
+
+        # Search through all known series (including inactive ones)
+        best_match = None
+        best_match_version = 0
+        best_match_date = None
+
+        for candidate_id, candidate in self.state.series.items():
+            # Skip the current series
+            if candidate_id == current_id:
+                continue
+
+            candidate_title = candidate.get("name") or ""
+            candidate_version = candidate.get("version", 1)
+            candidate_date_str = candidate.get("date", "")
+
+            # Normalize and compare titles
+            candidate_title_normalized = normalize_title(candidate_title)
+
+            if candidate_title_normalized != current_title_normalized:
+                continue
+
+            # Titles match - check if this is a previous version
+            # Previous version must have lower version number
+            if candidate_version >= current_version:
+                continue
+
+            # Parse dates for comparison
+            try:
+                if candidate_date_str.endswith("Z"):
+                    candidate_date = datetime.fromisoformat(candidate_date_str.replace("Z", "+00:00"))
+                elif "+" in candidate_date_str:
+                    candidate_date = datetime.fromisoformat(candidate_date_str)
+                else:
+                    candidate_date = datetime.fromisoformat(candidate_date_str).replace(tzinfo=timezone.utc)
+            except (ValueError, AttributeError):
+                candidate_date = None
+
+            # Track the best match (highest version number among previous versions)
+            if candidate_version > best_match_version:
+                best_match = candidate
+                best_match_version = candidate_version
+                best_match_date = candidate_date
+            elif candidate_version == best_match_version and candidate_date and best_match_date:
+                # If same version, prefer the newer one
+                if candidate_date > best_match_date:
+                    best_match = candidate
+                    best_match_date = candidate_date
+
+        return best_match
+
     def _prepare_series_data(self, series: Dict, series_score: SeriesScore) -> Dict:
         """Prepare series data for UI"""
         expected_checks = self.config["ui"].get("expected_checks", [])
@@ -1107,10 +1197,28 @@ class SuieApp:
         date_normalized = self._normalize_date(series.get("date", ""))
         age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
 
+        # Find previous version of this series
+        prev_version = self._find_previous_version(series)
+        prev_lore_url = None
+        if prev_version:
+            # Get lore URL for previous version
+            prev_lore_url = prev_version.get("list_archive_url")
+            if not prev_lore_url:
+                # Try cover letter
+                prev_cover = self.state.get_cover_letter(prev_version["id"])
+                if prev_cover:
+                    prev_lore_url = prev_cover.get("list_archive_url")
+                # If still no URL, try first patch
+                if not prev_lore_url:
+                    prev_patches = self.state.get_series_patches(prev_version["id"])
+                    if prev_patches:
+                        prev_lore_url = prev_patches[0].get("list_archive_url")
+
         return {
             "id": series["id"],
             "title": series.get("name") or "No title",
             "version": series.get("version", 1),
+            "prev_lore_url": prev_lore_url,
             "author": author_name,
             "author_company": author_company,
             "date": date_normalized,
