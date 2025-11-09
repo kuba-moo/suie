@@ -433,17 +433,23 @@ class SuieApp:
             time_since_last_comment_hours,
         )
 
-    def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int) -> List[str]:
+    def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int, author_email: str) -> List[str]:
         """
         Extract names of people who commented without providing review tags.
+        Excludes the author from the list.
 
         Args:
             comments: List of comments
+            series_id: Series ID (for logging)
+            author_email: Author's email to exclude
 
         Returns:
-            List of commenter names (deduplicated)
+            List of commenter names (deduplicated, excluding author)
         """
         commenters = set()
+
+        # Get author's canonical email for comparison
+        author_canonical = self.dev_db.get_canonical_identity(author_email).lower()
 
         for comment in comments:
             # Skip empty comments
@@ -459,10 +465,16 @@ class SuieApp:
             # Extract submitter information
             submitter = comment.get('submitter', {})
             name = (submitter.get('name') or '').strip()
+            email = submitter.get('email') or ''
+
+            # Skip if this is the author
+            if email:
+                commenter_canonical = self.dev_db.get_canonical_identity(email).lower()
+                if commenter_canonical == author_canonical:
+                    continue
 
             # If no name, try to extract from email
             if not name:
-                email = submitter.get('email') or ''
                 if email:
                     # Extract name from email local part
                     local_match = re.match(r"([^@]+)@", email)
@@ -475,7 +487,6 @@ class SuieApp:
                 commenters.add(name)
 
                 # Log if commenter is not in ml-stats (unless it's a bot)
-                email = submitter.get('email') or ''
                 if email and not self.dev_db.is_bot(email):
                     stats_key = self.dev_db._find_in_stats(email)
                     if not stats_key:
@@ -486,11 +497,11 @@ class SuieApp:
 
         return sorted(list(commenters))
 
-    @staticmethod
-    def _extract_reviewer_names_with_source(patch: Dict, comments: List[Dict]) -> Dict[str, str]:
+    def _extract_reviewer_names_with_source(self, patch: Dict, comments: List[Dict], author_email: str) -> Dict[str, str]:
         """
         Extract reviewer names with their source (original or comment).
         Looks for Reviewed-by, Acked-by, and Tested-by tags.
+        Excludes the author from the list.
 
         Priority rules:
         - If review tag in comments → 'comment' (engaged via comment)
@@ -503,6 +514,7 @@ class SuieApp:
         Args:
             patch: Patch data
             comments: List of comments for the patch
+            author_email: Author's email to exclude
 
         Returns:
             Dictionary mapping reviewer name -> source ('original' or 'comment')
@@ -510,6 +522,9 @@ class SuieApp:
         reviewers_original = {}  # name -> True
         reviewers_comment = {}   # name -> True
         commenters = set()       # Set of commenter names (commented without review tag)
+
+        # Get author's canonical email for comparison
+        author_canonical = self.dev_db.get_canonical_identity(author_email).lower()
 
         # Helper to normalize name for matching
         def normalize_name(name):
@@ -526,6 +541,14 @@ class SuieApp:
                 values = [values]
 
             for value in values:
+                # Extract email to check if it's the author
+                email_match = re.search(r"<([^>]+)>", value)
+                if email_match:
+                    reviewer_email = email_match.group(1).strip()
+                    reviewer_canonical = self.dev_db.get_canonical_identity(reviewer_email).lower()
+                    if reviewer_canonical == author_canonical:
+                        continue  # Skip author
+
                 # Extract name from "Name <email>" format
                 match = re.match(r"^([^<]+)<", value)
                 if match:
@@ -542,11 +565,19 @@ class SuieApp:
 
         # Check patch content for trailers (original reviews)
         content = patch.get("content", "")
-        tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<|$)"
+        tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<([^>]+)>|$)"
         matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
-        for name in matches:
+        for name, email in matches:
             name = name.strip()
+            email = email.strip()
+
+            # Skip if this is the author
+            if email:
+                reviewer_canonical = self.dev_db.get_canonical_identity(email).lower()
+                if reviewer_canonical == author_canonical:
+                    continue
+
             if name:
                 reviewers_original[normalize_name(name)] = name
 
@@ -555,8 +586,16 @@ class SuieApp:
             comment_content = comment.get('content', '')
             matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
 
-            for name in matches:
+            for name, email in matches:
                 name = name.strip()
+                email = email.strip()
+
+                # Skip if this is the author
+                if email:
+                    reviewer_canonical = self.dev_db.get_canonical_identity(email).lower()
+                    if reviewer_canonical == author_canonical:
+                        continue
+
                 if name:
                     reviewers_comment[normalize_name(name)] = name
 
@@ -574,10 +613,16 @@ class SuieApp:
             # Extract submitter information
             submitter = comment.get('submitter', {})
             name = (submitter.get('name') or '').strip()
+            email = submitter.get('email') or ''
+
+            # Skip if this is the author
+            if email:
+                commenter_canonical = self.dev_db.get_canonical_identity(email).lower()
+                if commenter_canonical == author_canonical:
+                    continue
 
             # If no name, try to extract from email
             if not name:
-                email = submitter.get('email') or ''
                 if email:
                     # Extract name from email local part
                     local_match = re.match(r"([^@]+)@", email)
@@ -1253,7 +1298,9 @@ class SuieApp:
 
             # Get reviewers with source information
             comments = self.state.get_patch_comments(patch_id)
-            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments)
+            reviewers_with_source = self._extract_reviewer_names_with_source(
+                patch, comments, author_email
+            )
 
             # Convert to list of dicts for UI
             reviewers = [
@@ -1262,7 +1309,9 @@ class SuieApp:
             ]
 
             # Get commenters (people who commented without providing review tags)
-            commenters = self._extract_commenters_without_tags(comments, series["id"])
+            commenters = self._extract_commenters_without_tags(
+                comments, series["id"], author_email
+            )
 
             patches_data.append(
                 {
