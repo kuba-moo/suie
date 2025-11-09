@@ -38,10 +38,17 @@ class UIGenerator:
             series_scores: List of series with scores and metadata
             delegates: List of possible delegates for filtering
         """
+        # Collect unique tree designations from series
+        tree_designations = set()
+        for series in series_scores:
+            if series.get('tree_designation'):
+                tree_designations.add(series['tree_designation'])
+
         # Prepare data for template
         template_data = {
             'series_list': series_scores,
             'delegates': delegates,
+            'tree_designations': sorted(tree_designations),
             'hide_inactive_default': self.hide_inactive_default,
             'expected_checks': self.expected_checks,
             'generated_at': datetime.now(timezone.utc).isoformat()
@@ -784,6 +791,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </select>
                 </div>
                 <div class="control-group">
+                    <label for="tree-filter">Tree:</label>
+                    <select id="tree-filter">
+                        <option value="">All</option>
+                        {% for tree in tree_designations %}
+                        <option value="{{ tree }}">{{ tree }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="control-group">
                     <button id="fold-all" title="Collapse all expanded series">Fold All</button>
                 </div>
                 <div class="control-group">
@@ -821,6 +837,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             document.getElementById('hide-inactive').addEventListener('change', renderSeries);
             document.getElementById('min-age-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
+            document.getElementById('tree-filter').addEventListener('change', onTreeChange);
             document.getElementById('fold-all').addEventListener('click', foldAllSeries);
             document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
         });
@@ -860,6 +877,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Read URL parameters
             const urlParams = new URLSearchParams(window.location.search);
             const delegate = urlParams.get('delegate');
+            const tree = urlParams.get('tree');
 
             // Set delegate filter if present in URL
             if (delegate) {
@@ -870,17 +888,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     delegateSelect.value = delegate;
                 }
             }
+
+            // Set tree filter if present in URL
+            if (tree) {
+                const treeSelect = document.getElementById('tree-filter');
+                // Check if this tree exists in the options
+                const option = Array.from(treeSelect.options).find(opt => opt.value === tree);
+                if (option) {
+                    treeSelect.value = tree;
+                }
+            }
         }
 
         function updateURL() {
             // Update URL with current filter state
             const delegateFilter = document.getElementById('delegate-filter').value;
+            const treeFilter = document.getElementById('tree-filter').value;
             const url = new URL(window.location);
 
             if (delegateFilter) {
                 url.searchParams.set('delegate', delegateFilter);
             } else {
                 url.searchParams.delete('delegate');
+            }
+
+            if (treeFilter) {
+                url.searchParams.set('tree', treeFilter);
+            } else {
+                url.searchParams.delete('tree');
             }
 
             // Update URL without page reload
@@ -892,11 +927,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             renderSeries();
         }
 
+        function onTreeChange() {
+            updateURL();
+            renderSeries();
+        }
+
         function renderSeries() {
             const container = document.getElementById('series-list');
             const hideInactive = document.getElementById('hide-inactive').checked;
             const minAgeFilter = parseInt(document.getElementById('min-age-filter').value);
             const delegateFilter = document.getElementById('delegate-filter').value;
+            const treeFilter = document.getElementById('tree-filter').value;
 
             container.innerHTML = '';
 
@@ -967,6 +1008,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         if (!hasDelegateMatch) {
                             return false;
                         }
+                    }
+                }
+
+                // Apply tree designation filter
+                if (treeFilter) {
+                    if (series.tree_designation !== treeFilter) {
+                        return false;
                     }
                 }
 

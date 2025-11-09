@@ -162,3 +162,5 @@ You still haven't gotten the series sumarization fully right. I see cases where 
 When user clicks on the ID of the series the ID should be copied into the clipboard (just the number).
 
 When the series title does not contain tree designation look for it in the first patch.
+
+Add the ability to filter by the designated tree.
