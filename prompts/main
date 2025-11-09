@@ -155,8 +155,10 @@ The reviewers from initial post vs from comments are correctly colored at the pa
 
 Try to match series to their previous revision. When new series is created check if you already know about a series (in the local state) which has the same title. Note that the previous revision is most likely already inactive. If you find a match add a badge next to the version (right of the title) called "prev". Clicking it should open archive link of that series.
 
-Read (or steal) ../nipa/core/maintainers.py, parse patch contents (the diff field in response) to find modified paths. You can assume the patch diff is generated with git. Lookup the paths for the author and all the reviewers. If person is the maintainer of any of the modified paths add a middle dot before their name (feel free to use another character or another way of highlighting the importance of the person that will be visually not too jarring but also clear).
+Read (or steal) ../nipa/core/maintainers.py, parse patch contents (the diff field in response) to find modified paths. You can assume the patch diff is generated with git. Lookup the paths for the author and all the reviewers. If person is the maintainer of any of the modified paths add a middle dot before their name (feel free to use another character or another way of highlighting the importance of the person that will be visually not too jarring but also clear). For maintainer reviewers and authors add to the tooltip the information that the persion is a maintainer.
 
 You still haven't gotten the series sumarization fully right. I see cases where person has commented on one patch and reviewed the rest and they show up as both commenter and reviewer. They should show up as commenter only at the patch level, as review-less comment is higher priority than review.
 
 When user clicks on the ID of the series the ID should be copied into the clipboard (just the number).
+
+When the series title does not contain tree designation look for it in the first patch.

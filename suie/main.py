@@ -1186,6 +1186,74 @@ class SuieApp:
 
         return False
 
+    @staticmethod
+    def _extract_tree_designation(title: str) -> Optional[str]:
+        """
+        Extract tree designation from a title.
+
+        Handles formats like:
+        - [net-next] Title
+        - [PATCH net-next] Title
+        - [net-next,v2] Title -> extracts "net-next"
+        - [v2,net-next,1/2] Title -> extracts "net-next"
+
+        Args:
+            title: Patch or series title
+
+        Returns:
+            Tree designation if found, None otherwise
+        """
+        if not title:
+            return None
+
+        # Match first bracketed content
+        tree_match = re.match(r'^\[([^\]]+)\]\s*', title)
+        if not tree_match:
+            return None
+
+        bracket_content = tree_match.group(1)
+
+        # Check if bracket contains comma or space (composite tag)
+        if ',' in bracket_content or ' ' in bracket_content:
+            # Split by comma or space
+            parts = re.split(r'[,\s]+', bracket_content)
+            parts = [p.strip() for p in parts if p.strip()]
+
+            # Filter out parts that look like:
+            # - Version numbers: v1, v2, V3, etc.
+            # - Patch numbers: 1/2, 3/5, etc.
+            # - PATCH keyword
+            filtered_parts = []
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+                # Check if it's a version number (v\d+ or V\d+)
+                if re.match(r'^v\d+$', part, re.IGNORECASE):
+                    continue
+                # Check if it's a patch number (e.g., 1/2, 3/5)
+                if re.match(r'^\d+\/\d+$', part):
+                    continue
+                # Check if it's "PATCH" keyword
+                if part.upper() == 'PATCH':
+                    continue
+                filtered_parts.append(part)
+
+            # If we have any parts left, use the first one as tree designation
+            if filtered_parts:
+                return filtered_parts[0]
+        else:
+            # Single part, use as-is (unless it's a version, patch number, or PATCH keyword)
+            if re.match(r'^v\d+$', bracket_content, re.IGNORECASE):
+                return None
+            if re.match(r'^\d+\/\d+$', bracket_content):
+                return None
+            if bracket_content.upper() == 'PATCH':
+                return None
+            return bracket_content
+
+        return None
+
     def _prepare_series_data(self, series: Dict, series_score: SeriesScore) -> Dict:
         """Prepare series data for UI"""
         expected_checks = self.config["ui"].get("expected_checks", [])
@@ -1659,9 +1727,22 @@ class SuieApp:
                     "lore_url": prev_lore_url
                 })
 
+        # Extract tree designation from series title, or from first patch if not found
+        series_title = series.get("name") or "No title"
+        tree_designation = self._extract_tree_designation(series_title)
+
+        if not tree_designation and series_score.patch_scores:
+            # Try first patch title
+            first_patch_id = series_score.patch_scores[0].patch_id
+            first_patch = self.state.patches.get(first_patch_id)
+            if first_patch:
+                first_patch_title = first_patch.get("name", "")
+                tree_designation = self._extract_tree_designation(first_patch_title)
+
         return {
             "id": series["id"],
-            "title": series.get("name") or "No title",
+            "title": series_title,
+            "tree_designation": tree_designation,  # Add tree designation field
             "version": series.get("version", 1),
             "prev_versions": prev_versions_data,  # List of {version, lore_url}
             "author": author_name,
