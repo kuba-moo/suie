@@ -241,25 +241,55 @@ class SuieApp:
 
         # Load MAINTAINERS file if configured
         self.maintainers = None
-        maintainers_config = self.config.get("maintainers", {})
-        if maintainers_config.get("enabled", False):
-            maintainers_file = maintainers_config.get("file")
-            maintainers_url = maintainers_config.get("url")
+        self.maintainers_config = self.config.get("maintainers", {})
+        self.maintainers_last_loaded = None
 
-            try:
-                if maintainers_file:
-                    logger.info("Loading MAINTAINERS from file: %s", maintainers_file)
-                    self.maintainers = Maintainers(file=maintainers_file, config=self.config)
-                elif maintainers_url:
-                    logger.info("Loading MAINTAINERS from URL: %s", maintainers_url)
-                    self.maintainers = Maintainers(url=maintainers_url, config=self.config)
-
-                if self.maintainers:
-                    logger.info("Loaded %d MAINTAINERS entries", len(self.maintainers.entries))
-            except Exception as e:
-                logger.warning("Failed to load MAINTAINERS: %s", e)
+        if self.maintainers_config.get("enabled", False):
+            self._load_maintainers()
 
         logger.info("Suie initialized successfully")
+
+    def _load_maintainers(self):
+        """Load or reload MAINTAINERS file"""
+        maintainers_file = self.maintainers_config.get("file")
+        maintainers_url = self.maintainers_config.get("url")
+
+        try:
+            if maintainers_file:
+                logger.info("Loading MAINTAINERS from file: %s", maintainers_file)
+                self.maintainers = Maintainers(file=maintainers_file, config=self.config)
+            elif maintainers_url:
+                logger.info("Loading MAINTAINERS from URL: %s", maintainers_url)
+                self.maintainers = Maintainers(url=maintainers_url, config=self.config)
+
+            if self.maintainers:
+                logger.info("Loaded %d MAINTAINERS entries", len(self.maintainers.entries))
+                self.maintainers_last_loaded = datetime.now(timezone.utc)
+        except Exception as e:
+            logger.warning("Failed to load MAINTAINERS: %s", e)
+            self.maintainers = None
+
+    def _check_and_reload_maintainers(self):
+        """Check if MAINTAINERS needs reloading (once per day) and reload if needed"""
+        if not self.maintainers_config.get("enabled", False):
+            return
+
+        # If never loaded, load it now
+        if self.maintainers_last_loaded is None:
+            self._load_maintainers()
+            return
+
+        # Check if 24 hours have passed since last load
+        now = datetime.now(timezone.utc)
+        time_since_load = now - self.maintainers_last_loaded
+        hours_since_load = time_since_load.total_seconds() / 3600
+
+        if hours_since_load >= 24:
+            logger.info(
+                "MAINTAINERS file is %.1f hours old, reloading...",
+                hours_since_load
+            )
+            self._load_maintainers()
 
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
@@ -300,6 +330,9 @@ class SuieApp:
     def poll_and_update(self):
         """Poll for events and regenerate UI if state changed"""
         logger.info("Polling for events...")
+
+        # Check and reload MAINTAINERS if needed (once per day)
+        self._check_and_reload_maintainers()
 
         state_changed = self.poller.poll_events()
 
