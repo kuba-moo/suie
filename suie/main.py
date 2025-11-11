@@ -438,6 +438,9 @@ class SuieApp:
         Extract names of people who commented without providing review tags.
         Excludes the author from the list.
 
+        IMPORTANT: If a person adds a review tag in ANY comment, they are NOT
+        considered a commenter (reviewers have priority).
+
         Args:
             comments: List of comments
             series_id: Series ID (for logging)
@@ -446,20 +449,33 @@ class SuieApp:
         Returns:
             List of commenter names (deduplicated, excluding author)
         """
-        commenters = set()
-
         # Get author's canonical email for comparison
         author_canonical = self.dev_db.get_canonical_identity(author_email).lower()
+
+        # First pass: identify all people who provided review tags in ANY comment
+        reviewers = set()  # Set of canonical emails who provided review tags
+        tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*"
+
+        for comment in comments:
+            content = comment.get('content', '').strip()
+            if not content:
+                continue
+
+            # Check if this comment contains review tags
+            if re.search(tag_pattern, content, re.IGNORECASE):
+                submitter = comment.get('submitter', {})
+                email = submitter.get('email') or ''
+                if email:
+                    canonical = self.dev_db.get_canonical_identity(email).lower()
+                    reviewers.add(canonical)
+
+        # Second pass: collect commenters, excluding reviewers
+        commenters = set()
 
         for comment in comments:
             # Skip empty comments
             content = comment.get('content', '').strip()
             if not content or len(content) < 20:  # Skip very short comments
-                continue
-
-            # Check if comment contains review tags - if so, skip (already tracked)
-            tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*"
-            if re.search(tag_pattern, content, re.IGNORECASE):
                 continue
 
             # Extract submitter information
@@ -471,6 +487,10 @@ class SuieApp:
             if email:
                 commenter_canonical = self.dev_db.get_canonical_identity(email).lower()
                 if commenter_canonical == author_canonical:
+                    continue
+
+                # Skip if this person provided review tags in ANY comment
+                if commenter_canonical in reviewers:
                     continue
 
             # If no name, try to extract from email
@@ -1679,8 +1699,8 @@ class SuieApp:
         # Build set of all reviewer names (normalized for comparison)
         all_reviewer_names = set()
         for reviewer_name in (reviewers_full_comment + reviewers_full_original + reviewers_partial):
-            # Remove the maintainer marker (●) if present for comparison
-            clean_name = reviewer_name.replace(" ●", "").strip().lower()
+            # Remove the maintainer/reviewer markers (Ⓜ, Ⓡ) if present for comparison
+            clean_name = reviewer_name.replace(" Ⓜ", "").replace(" Ⓡ", "").strip().lower()
             all_reviewer_names.add(clean_name)
 
         # Filter out commenters who are also reviewers (reviewers have priority)
