@@ -1514,6 +1514,8 @@ class SuieApp:
             series_state = "not-applicable"
         elif "under-review" in patch_states:
             series_state = "under-review"
+        elif "needs-ack" in patch_states:
+            series_state = "needs-ack"
         elif "new" in patch_states:
             series_state = "new"
 
@@ -1810,6 +1812,7 @@ class SuieApp:
             "age_total_hours": age_breakdown["total_hours"],
             "score": series_score.score,
             "is_inactive": is_inactive,
+            "needs_ack": series_state == "needs-ack",
             "state": series_state,
             "patches": patches_data,
             "delegates": delegates_in_series,

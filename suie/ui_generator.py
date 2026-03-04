@@ -353,6 +353,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #ff9f40;
         }
 
+        .state-needs-ack {
+            background-color: #fff0e6;
+            color: #cc5500;
+        }
+
+        [data-theme="dark"] .state-needs-ack {
+            background-color: #3d1f0a;
+            color: #ff8533;
+        }
+
         .state-accepted {
             background-color: #dcffe4;
             color: #0e6027;
@@ -772,6 +782,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <label for="hide-inactive">Hide inactive series</label>
                 </div>
                 <div class="control-group">
+                    <input type="checkbox" id="hide-needs-ack" checked>
+                    <label for="hide-needs-ack">Hide Needs ACK</label>
+                </div>
+                <div class="control-group">
                     <label for="min-age-filter">Min age:</label>
                     <select id="min-age-filter">
                         <option value="0">All</option>
@@ -843,6 +857,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // Event listeners
             document.getElementById('hide-inactive').addEventListener('change', renderSeries);
+            document.getElementById('hide-needs-ack').addEventListener('change', renderSeries);
             document.getElementById('min-age-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
             document.getElementById('tree-filter').addEventListener('change', onTreeChange);
@@ -943,6 +958,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         function renderSeries() {
             const container = document.getElementById('series-list');
             const hideInactive = document.getElementById('hide-inactive').checked;
+            const hideNeedsAck = document.getElementById('hide-needs-ack').checked;
             const minAgeFilter = parseInt(document.getElementById('min-age-filter').value);
             const delegateFilter = document.getElementById('delegate-filter').value;
             const treeFilter = document.getElementById('tree-filter').value;
@@ -994,6 +1010,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             let filteredSeries = seriesData.filter(series => {
                 // Apply inactive filter
                 if (hideInactive && series.is_inactive) {
+                    return false;
+                }
+
+                // Apply needs-ack filter
+                if (hideNeedsAck && series.needs_ack) {
                     return false;
                 }
 

@@ -182,7 +182,7 @@ class StateManager:
             return False
 
         # Define active states - series is active only if at least one patch is in these states
-        active_states = {'new', 'under-review'}
+        active_states = {'new', 'under-review', 'needs-ack'}
 
         for patch in patches:
             # Skip archived patches
