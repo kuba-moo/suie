@@ -433,7 +433,8 @@ class SuieApp:
             time_since_last_comment_hours,
         )
 
-    def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int, author_email: str) -> List[str]:
+    def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int, author_email: str,
+                                            cover_comments: List[Dict] = None) -> List[str]:
         """
         Extract names of people who commented without providing review tags.
         Excludes the author from the list.
@@ -445,10 +446,15 @@ class SuieApp:
             comments: List of comments
             series_id: Series ID (for logging)
             author_email: Author's email to exclude
+            cover_comments: Optional list of cover letter comments
 
         Returns:
             List of commenter names (deduplicated, excluding author)
         """
+        all_comments = list(comments)
+        if cover_comments:
+            all_comments.extend(cover_comments)
+
         # Get author's canonical email for comparison
         author_canonical = self.dev_db.get_canonical_identity(author_email).lower()
 
@@ -456,7 +462,7 @@ class SuieApp:
         reviewers = set()  # Set of canonical emails who provided review tags
         tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*"
 
-        for comment in comments:
+        for comment in all_comments:
             content = comment.get('content', '').strip()
             if not content:
                 continue
@@ -472,7 +478,7 @@ class SuieApp:
         # Second pass: collect commenters, excluding reviewers
         commenters = set()
 
-        for comment in comments:
+        for comment in all_comments:
             # Skip empty comments
             content = comment.get('content', '').strip()
             if not content or len(content) < 20:  # Skip very short comments
@@ -517,7 +523,8 @@ class SuieApp:
 
         return sorted(list(commenters))
 
-    def _extract_reviewer_names_with_source(self, patch: Dict, comments: List[Dict], author_email: str) -> Dict[str, str]:
+    def _extract_reviewer_names_with_source(self, patch: Dict, comments: List[Dict], author_email: str,
+                                               cover_comments: List[Dict] = None) -> Dict[str, str]:
         """
         Extract reviewer names with their source (original or comment).
         Looks for Reviewed-by, Acked-by, and Tested-by tags.
@@ -535,10 +542,14 @@ class SuieApp:
             patch: Patch data
             comments: List of comments for the patch
             author_email: Author's email to exclude
+            cover_comments: Optional list of cover letter comments
 
         Returns:
             Dictionary mapping reviewer name -> source ('original' or 'comment')
         """
+        all_comments = list(comments)
+        if cover_comments:
+            all_comments.extend(cover_comments)
         reviewers_original = {}  # name -> True
         reviewers_comment = {}   # name -> True
         commenters = set()       # Set of commenter names (commented without review tag)
@@ -602,7 +613,7 @@ class SuieApp:
                 reviewers_original[normalize_name(name)] = name
 
         # Check comments for review tags (comment reviews)
-        for comment in comments:
+        for comment in all_comments:
             comment_content = comment.get('content', '')
             matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
 
@@ -620,7 +631,7 @@ class SuieApp:
                     reviewers_comment[normalize_name(name)] = name
 
         # Extract commenters (people who commented without review tags)
-        for comment in comments:
+        for comment in all_comments:
             content = comment.get('content', '').strip()
             if not content or len(content) < 20:  # Skip very short comments
                 continue
@@ -1362,6 +1373,13 @@ class SuieApp:
             elif state == "success":
                 series_passing_checks.append(context)
 
+        # Get cover letter comments for propagation to all patches
+        series_id = series.get("id")
+        cover_letter = self.state.get_cover_letter(series_id)
+        cover_comments = []
+        if cover_letter:
+            cover_comments = self.state.get_cover_comments(cover_letter["id"])
+
         # Prepare patch data
         patches_data = []
         for patch_score in series_score.patch_scores:
@@ -1404,7 +1422,7 @@ class SuieApp:
             # Get reviewers with source information
             comments = self.state.get_patch_comments(patch_id)
             reviewers_with_source = self._extract_reviewer_names_with_source(
-                patch, comments, author_email
+                patch, comments, author_email, cover_comments
             )
 
             # Convert to list of dicts for UI
@@ -1415,7 +1433,7 @@ class SuieApp:
 
             # Get commenters (people who commented without providing review tags)
             commenters = self._extract_commenters_without_tags(
-                comments, series["id"], author_email
+                comments, series["id"], author_email, cover_comments
             )
 
             patches_data.append(
@@ -1537,7 +1555,7 @@ class SuieApp:
 
             # Get reviewers with source information for this patch
             comments = self.state.get_patch_comments(patch_id)
-            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments, author_email)
+            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments, author_email, cover_comments)
 
             # For each reviewer in this patch, track them at series level
             for reviewer_name, source in reviewers_with_source.items():

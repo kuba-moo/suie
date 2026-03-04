@@ -464,14 +464,11 @@ class ScoringContext:
             content = comment.get('content', '')
             self._extract_tags_from_content(content, is_comment=True)
 
-        # Check cover letter comments for series-wide tags
+        # Check cover letter comments for tags (apply to all patches in series)
         if self.cover_comments:
             for comment in self.cover_comments:
                 content = comment.get('content', '')
-                # Check for series-wide tags
-                if ('for the whole series' in content.lower() or
-                        'for the entire series' in content.lower()):
-                    self._extract_tags_from_content(content, is_comment=True)
+                self._extract_tags_from_content(content, is_comment=True)
 
     def _extract_tags_from_headers(self, headers: Dict):
         """Extract review tags from email headers"""
