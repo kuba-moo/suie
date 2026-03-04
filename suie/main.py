@@ -1611,9 +1611,10 @@ class SuieApp:
                                 reviewer_email = email_match.group(1)
                                 break
 
-                # Search in comments if still not found
+                # Search in comments (and cover comments) if still not found
                 if not reviewer_email:
-                    for comment in comments:
+                    all_comments = list(comments) + cover_comments
+                    for comment in all_comments:
                         comment_content = comment.get('content', '')
                         matches = re.findall(tag_pattern, comment_content, re.IGNORECASE | re.MULTILINE)
 
