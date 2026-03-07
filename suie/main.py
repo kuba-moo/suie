@@ -460,7 +460,7 @@ class SuieApp:
 
         # First pass: identify all people who provided review tags in ANY comment
         reviewers = set()  # Set of canonical emails who provided review tags
-        tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*"
+        tag_pattern = r"^(?:Reviewed-by|Acked-by|Tested-by):\s*"
 
         for comment in all_comments:
             content = comment.get('content', '').strip()
@@ -468,7 +468,7 @@ class SuieApp:
                 continue
 
             # Check if this comment contains review tags
-            if re.search(tag_pattern, content, re.IGNORECASE):
+            if re.search(tag_pattern, content, re.IGNORECASE | re.MULTILINE):
                 submitter = comment.get('submitter', {})
                 email = submitter.get('email') or ''
                 if email:
@@ -596,7 +596,7 @@ class SuieApp:
 
         # Check patch content for trailers (original reviews)
         content = patch.get("content", "")
-        tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<([^>]+)>|$)"
+        tag_pattern = r"^(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)(?:<([^>]+)>|$)"
         matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
         for name, email in matches:
@@ -637,8 +637,8 @@ class SuieApp:
                 continue
 
             # Check if comment contains review tags - if so, skip (already tracked)
-            tag_pattern_check = r"(?:Reviewed-by|Acked-by|Tested-by):\s*"
-            if re.search(tag_pattern_check, content, re.IGNORECASE):
+            tag_pattern_check = r"^(?:Reviewed-by|Acked-by|Tested-by):\s*"
+            if re.search(tag_pattern_check, content, re.IGNORECASE | re.MULTILINE):
                 continue
 
             # Extract submitter information
@@ -1595,7 +1595,7 @@ class SuieApp:
                 # Search in patch content if not found in headers
                 if not reviewer_email:
                     content = patch.get("content", "")
-                    tag_pattern = r"(?:Reviewed-by|Acked-by|Tested-by):\s*(.+?)(?:\n|$)"
+                    tag_pattern = r"^(?:Reviewed-by|Acked-by|Tested-by):\s*(.+?)(?:\n|$)"
                     matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
                     for value in matches:
