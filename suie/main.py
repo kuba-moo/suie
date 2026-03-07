@@ -550,8 +550,8 @@ class SuieApp:
         all_comments = list(comments)
         if cover_comments:
             all_comments.extend(cover_comments)
-        reviewers_original = {}  # name -> True
-        reviewers_comment = {}   # name -> True
+        reviewers_original = {}  # normalized_name -> (display_name, email)
+        reviewers_comment = {}   # normalized_name -> (display_name, email)
         commenters = set()       # Set of commenter names (commented without review tag)
 
         # Get author's canonical email for comparison
@@ -573,6 +573,7 @@ class SuieApp:
 
             for value in values:
                 # Extract email to check if it's the author
+                reviewer_email = None
                 email_match = re.search(r"<([^>]+)>", value)
                 if email_match:
                     reviewer_email = email_match.group(1).strip()
@@ -585,14 +586,13 @@ class SuieApp:
                 if match:
                     name = match.group(1).strip()
                     if name:
-                        reviewers_original[normalize_name(name)] = name
+                        reviewers_original[normalize_name(name)] = (name, reviewer_email)
                 else:
-                    # Try to extract just email and use local part
                     email_match = re.search(r"([a-zA-Z0-9._%+-]+)@", value)
                     if email_match:
                         name = email_match.group(1)
                         if name:
-                            reviewers_original[normalize_name(name)] = name
+                            reviewers_original[normalize_name(name)] = (name, None)
 
         # Check patch content for trailers (original reviews)
         content = patch.get("content", "")
@@ -610,7 +610,7 @@ class SuieApp:
                     continue
 
             if name:
-                reviewers_original[normalize_name(name)] = name
+                reviewers_original[normalize_name(name)] = (name, email or None)
 
         # Check comments for review tags (comment reviews)
         for comment in all_comments:
@@ -628,7 +628,7 @@ class SuieApp:
                         continue
 
                 if name:
-                    reviewers_comment[normalize_name(name)] = name
+                    reviewers_comment[normalize_name(name)] = (name, email or None)
 
         # Extract commenters (people who commented without review tags)
         for comment in all_comments:
@@ -666,24 +666,24 @@ class SuieApp:
                 commenters.add(normalize_name(name))
 
         # Build final result with priority rules
-        result = {}  # name -> source
+        result = {}  # name -> (source, email)
 
         # Priority 1: Review tag in comments → 'comment'
-        for normalized_name, display_name in reviewers_comment.items():
-            result[display_name] = 'comment'
+        for normalized_name, (display_name, email) in reviewers_comment.items():
+            result[display_name] = ('comment', email)
 
         # Priority 2: Review tag in original
-        for normalized_name, display_name in reviewers_original.items():
+        for normalized_name, (display_name, email) in reviewers_original.items():
             # Skip if already in comments (priority 1)
             if normalized_name in reviewers_comment:
                 continue
 
             # If they also commented (without adding a tag) → 'comment' (engaged)
             if normalized_name in commenters:
-                result[display_name] = 'comment'
+                result[display_name] = ('comment', email)
             else:
                 # Pure original review, no engagement → 'original'
-                result[display_name] = 'original'
+                result[display_name] = ('original', email)
 
         return result
 
@@ -1305,6 +1305,7 @@ class SuieApp:
         # Get author email early - needed for filtering reviewers/commenters
         submitter = series.get("submitter", {})
         author_email = submitter.get("email", "")
+        author_company = self.dev_db.get_company(author_email) if author_email else None
 
         # Aggregate check status across all patches
         # For each check context, track the worst state across all patches
@@ -1426,10 +1427,14 @@ class SuieApp:
             )
 
             # Convert to list of dicts for UI
-            reviewers = [
-                {"name": name, "source": source}
-                for name, source in reviewers_with_source.items()
-            ]
+            reviewers = []
+            for name, (source, reviewer_email) in reviewers_with_source.items():
+                internal = False
+                if reviewer_email and author_company is not None:
+                    reviewer_company = self.dev_db.get_company(reviewer_email)
+                    if reviewer_company == author_company:
+                        internal = True
+                reviewers.append({"name": name, "source": source, "internal": internal})
 
             # Get commenters (people who commented without providing review tags)
             commenters = self._extract_commenters_without_tags(
@@ -1525,9 +1530,6 @@ class SuieApp:
         )
 
         # Aggregate external reviewers at series level
-        # Get author's company
-        author_email = submitter.get("email", "")
-        author_company = self.dev_db.get_company(author_email)
 
         # Parse patch diffs to extract modified paths (for maintainer checking)
         modified_paths = []
@@ -1560,7 +1562,7 @@ class SuieApp:
             reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments, author_email, cover_comments)
 
             # For each reviewer in this patch, track them at series level
-            for reviewer_name, source in reviewers_with_source.items():
+            for reviewer_name, (source, _email) in reviewers_with_source.items():
                 # Try to find email from patch headers/content/comments
                 # This is needed to check if they're external and for deduplication
 

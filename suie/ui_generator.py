@@ -535,6 +535,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border-color: #238636;
         }
 
+        .reviewer-badge-internal {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #e8e8e8;
+            color: #888888;
+            border: 1px solid #c0c0c0;
+        }
+
+        [data-theme="dark"] .reviewer-badge-internal {
+            background-color: #333333;
+            color: #d0d0d0;
+            border-color: #606060;
+        }
+
         .reviewer-badge-full {
             padding: 2px 8px;
             border-radius: 12px;
@@ -1673,10 +1689,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         const isObject = typeof reviewer === 'object';
                         const name = isObject ? reviewer.name : reviewer;
                         const source = isObject ? reviewer.source : 'original';
+                        const internal = isObject ? reviewer.internal : false;
 
                         const badge = document.createElement('span');
-                        // Apply different CSS class based on source
-                        if (source === 'original') {
+                        // Internal reviewers get a distinct muted style
+                        if (internal) {
+                            badge.className = 'reviewer-badge-internal';
+                            badge.title = `${name} (same company as author)`;
+                        } else if (source === 'original') {
                             badge.className = 'reviewer-badge-original';
                             badge.title = `${name} (reviewed in original patch)`;
                         } else {
