@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pylint:*)"
+      "Bash(pylint:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

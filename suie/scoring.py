@@ -459,16 +459,66 @@ class ScoringContext:
         content = self.patch.get('content', '')
         self._extract_tags_from_content(content)
 
-        # Check comments for tags
-        for comment in self.comments:
-            content = comment.get('content', '')
-            self._extract_tags_from_content(content, is_comment=True)
+        # Track identities of people who left discussion comments (no tags)
+        # Use both names and canonical emails for matching
+        discussion_commenter_names = set()
+        discussion_commenter_emails = set()
 
-        # Check cover letter comments for tags (apply to all patches in series)
+        # Check comments for tags
+        all_comments = list(self.comments)
         if self.cover_comments:
-            for comment in self.cover_comments:
-                content = comment.get('content', '')
-                self._extract_tags_from_content(content, is_comment=True)
+            all_comments.extend(self.cover_comments)
+
+        for comment in all_comments:
+            content = comment.get('content', '')
+            self._extract_tags_from_content(content)
+
+            # If this comment has no tags and substantial content,
+            # track the submitter as a discussion commenter
+            tag_pattern = r'^(?:Reviewed-by|Acked-by|Tested-by):\s*'
+            if not re.search(tag_pattern, content, re.IGNORECASE | re.MULTILINE):
+                if len(content.strip()) > 50:
+                    submitter = comment.get('submitter', {})
+                    name = (submitter.get('name') or '').strip().lower()
+                    email = (submitter.get('email') or '').strip()
+                    if name:
+                        discussion_commenter_names.add(name)
+                    if email:
+                        canonical = self.dev_db.get_canonical_identity(email).lower()
+                        discussion_commenter_emails.add(canonical)
+
+        # Check if any discussion commenters are unresolved (didn't provide tags)
+        # Match by either name or canonical email
+        tag_provider_names = set()
+        tag_provider_emails = set()
+        tag_name_pattern = r'^(?:Reviewed-by|Acked-by|Tested-by):\s*([^<\n]+)'
+        tag_email_pattern = r'^(?:Reviewed-by|Acked-by|Tested-by):\s*[^<\n]*<([^>]+)>'
+        for comment in all_comments:
+            content = comment.get('content', '')
+            name_matches = re.findall(tag_name_pattern, content, re.IGNORECASE | re.MULTILINE)
+            if name_matches:
+                # Add the comment submitter's identity
+                submitter = comment.get('submitter', {})
+                name = (submitter.get('name') or '').strip().lower()
+                email = (submitter.get('email') or '').strip()
+                if name:
+                    tag_provider_names.add(name)
+                if email:
+                    canonical = self.dev_db.get_canonical_identity(email).lower()
+                    tag_provider_emails.add(canonical)
+                # Add names and emails from the tags themselves
+                for tag_name in name_matches:
+                    tag_provider_names.add(tag_name.strip().lower())
+                email_matches = re.findall(tag_email_pattern, content, re.IGNORECASE | re.MULTILINE)
+                for tag_email in email_matches:
+                    canonical = self.dev_db.get_canonical_identity(tag_email.strip()).lower()
+                    tag_provider_emails.add(canonical)
+
+        # A commenter is resolved if their name OR email matches a tag provider
+        unresolved_names = discussion_commenter_names - tag_provider_names
+        unresolved_emails = discussion_commenter_emails - tag_provider_emails
+        if unresolved_names and unresolved_emails:
+            self.review_comments_present = True
 
     def _extract_tags_from_headers(self, headers: Dict):
         """Extract review tags from email headers"""
@@ -485,10 +535,10 @@ class ScoringContext:
                 if email:
                     self.review_tags.append((tag_type.lower(), email))
 
-    def _extract_tags_from_content(self, content: str, is_comment: bool = False):
+    def _extract_tags_from_content(self, content: str):
         """Extract review tags from content"""
         # Pattern to match review tags
-        tag_pattern = r'(Reviewed-by|Acked-by|Tested-by):\s*(.+?)(?:\n|$)'
+        tag_pattern = r'^(Reviewed-by|Acked-by|Tested-by):\s*(.+?)(?:\n|$)'
 
         matches = re.findall(tag_pattern, content, re.IGNORECASE | re.MULTILINE)
 
@@ -496,12 +546,6 @@ class ScoringContext:
             email = self._extract_email(value)
             if email:
                 self.review_tags.append((tag_type.lower(), email))
-
-        # Check if this is a review comment (not just a tag)
-        if is_comment and not matches:
-            # If comment has substantial content, it's likely a review comment
-            if len(content.strip()) > 50:  # Arbitrary threshold
-                self.review_comments_present = True
 
     def _extract_email(self, text: str) -> Optional[str]:
         """Extract email address from text"""
