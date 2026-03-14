@@ -1329,12 +1329,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             titleEl.style.minWidth = '0';
             titleContainerEl.appendChild(titleEl);
 
-            // Badges container (right side)
+            // Badges container (right side) - stacked: tree+count on top, versions below
             const badgesContainer = document.createElement('div');
             badgesContainer.style.display = 'flex';
-            badgesContainer.style.alignItems = 'center';
-            badgesContainer.style.gap = '0';  // No gap since badges have their own margin-right
+            badgesContainer.style.flexDirection = 'column';
+            badgesContainer.style.alignItems = 'flex-end';
+            badgesContainer.style.gap = '4px';
             badgesContainer.style.flexShrink = '0';  // Don't shrink badges
+
+            // Top row: tree designation + patch count
+            const topRow = document.createElement('div');
+            topRow.style.display = 'flex';
+            topRow.style.alignItems = 'center';
+            topRow.style.gap = '0';
 
             // Add tree designation badge if present
             if (treeDesignation) {
@@ -1342,8 +1349,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 treeBadge.className = 'tree-badge';
                 treeBadge.textContent = treeDesignation;
                 treeBadge.title = `Tree: ${treeDesignation}`;
-                badgesContainer.appendChild(treeBadge);
+                topRow.appendChild(treeBadge);
             }
+
+            // Add patch count badge only if more than 1 patch
+            if (series.patches.length > 1) {
+                const patchCountBadge = document.createElement('span');
+                patchCountBadge.className = 'patch-count-badge';
+                patchCountBadge.textContent = series.patches.length;
+                patchCountBadge.title = `${series.patches.length} patches in this series`;
+                topRow.appendChild(patchCountBadge);
+            }
+
+            if (topRow.children.length > 0) {
+                badgesContainer.appendChild(topRow);
+            }
+
+            // Bottom row: version chips
+            const bottomRow = document.createElement('div');
+            bottomRow.style.display = 'flex';
+            bottomRow.style.alignItems = 'center';
+            bottomRow.style.gap = '0';
 
             // Add previous version badges (clickable links to lore), then current version
             // Sort: v1, v2, v3, ..., vN (current) - left to right
@@ -1367,7 +1393,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         prevBadge.style.opacity = '1';
                         prevBadge.style.textDecoration = 'none';
                     });
-                    badgesContainer.appendChild(prevBadge);
+                    bottomRow.appendChild(prevBadge);
                 });
 
                 // Add current version badge (not clickable)
@@ -1375,23 +1401,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 versionBadge.className = 'tree-badge';
                 versionBadge.textContent = `v${series.version}`;
                 versionBadge.title = `Version ${series.version} (current)`;
-                badgesContainer.appendChild(versionBadge);
+                bottomRow.appendChild(versionBadge);
             } else if (series.version && series.version > 1) {
                 // No previous versions found, but version > 1, show current version only
                 const versionBadge = document.createElement('span');
                 versionBadge.className = 'tree-badge';
                 versionBadge.textContent = `v${series.version}`;
                 versionBadge.title = `Version ${series.version}`;
-                badgesContainer.appendChild(versionBadge);
+                bottomRow.appendChild(versionBadge);
             }
 
-            // Add patch count badge only if more than 1 patch
-            if (series.patches.length > 1) {
-                const patchCountBadge = document.createElement('span');
-                patchCountBadge.className = 'patch-count-badge';
-                patchCountBadge.textContent = series.patches.length;
-                patchCountBadge.title = `${series.patches.length} patches in this series`;
-                badgesContainer.appendChild(patchCountBadge);
+            if (bottomRow.children.length > 0) {
+                badgesContainer.appendChild(bottomRow);
             }
 
             titleContainerEl.appendChild(badgesContainer);
