@@ -225,7 +225,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-list-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px 30px;
+            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px;
             gap: 15px;
             align-items: center;
             background-color: var(--bg-secondary);
@@ -276,7 +276,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px 30px;
+            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px;
             gap: 15px;
             align-items: center;
         }
@@ -660,20 +660,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             vertical-align: middle;
         }
 
-        .expand-icon {
-            transition: transform 0.2s;
-            font-size: 18px;
-            color: #586069;
+        .series-row.expanded {
+            border: 2px solid var(--text-link);
+            border-radius: 4px;
+            margin: 4px 0;
         }
 
-        .series-row.expanded .expand-icon {
-            transform: rotate(90deg);
+        .series-row.expanded .series-header {
+            border-bottom: 1px solid var(--border-color);
         }
 
         .patches-container {
             display: none;
             background-color: var(--bg-hover);
-            border-top: 1px solid var(--border-color);
         }
 
         .series-row.expanded .patches-container {
@@ -776,7 +775,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         @media (max-width: 1000px) {
             .series-header {
-                grid-template-columns: 60px 120px 1fr 80px 70px 90px 100px 130px 30px;
+                grid-template-columns: 60px 120px 1fr 80px 70px 90px 100px 130px;
                 gap: 10px;
                 font-size: 13px;
             }
@@ -993,8 +992,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 {text: 'Score', sortable: true, key: 'score'},
                 {text: 'State', sortable: false},
                 {text: 'Reviews', sortable: true, key: 'reviews'},
-                {text: 'Checks', sortable: true, key: 'checks'},
-                {text: '', sortable: false}
+                {text: 'Checks', sortable: true, key: 'checks'}
             ];
 
             headers.forEach(header => {
@@ -1620,12 +1618,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }
 
             header.appendChild(checksEl);
-
-            // Expand icon
-            const expandEl = document.createElement('div');
-            expandEl.className = 'expand-icon';
-            expandEl.textContent = '›';
-            header.appendChild(expandEl);
 
             // Patches container
             const patchesContainer = document.createElement('div');
