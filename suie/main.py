@@ -1281,6 +1281,9 @@ class SuieApp:
                 # Check if it's "PATCH", "RFC", "GIT", or "PULL" keyword
                 if part.upper() in ('PATCH', 'RFC', 'GIT', 'PULL'):
                     continue
+                # Tree names must start and end with a letter
+                if part[0].isdigit() or part[-1].isdigit():
+                    continue
                 filtered_parts.append(part)
 
             # If we have any parts left, use the first one as tree designation
@@ -1293,6 +1296,9 @@ class SuieApp:
             if re.match(r'^\d+\/\d+$', bracket_content):
                 return None
             if bracket_content.upper() in ('PATCH', 'RFC', 'GIT', 'PULL'):
+                return None
+            # Tree names must start and end with a letter
+            if bracket_content[0].isdigit() or bracket_content[-1].isdigit():
                 return None
             return bracket_content
 
