@@ -314,6 +314,25 @@ class DeveloperDatabase:
 
         return 0
 
+    def get_posting_count(self, email: str) -> int:
+        """
+        Get the number of change-sets authored by an individual
+
+        Args:
+            email: Email address
+
+        Returns:
+            Number of change-sets posted (0 if not found)
+        """
+        individual_stats = self.stats.get('individual', {})
+        stats_key = self._find_in_stats(email)
+
+        if stats_key:
+            author_data = individual_stats[stats_key].get('author', {})
+            return author_data.get('cs', 0)
+
+        return 0
+
     def is_bot(self, email: str) -> bool:
         """
         Check if an email address belongs to a bot
@@ -574,6 +593,10 @@ class ScoringContext:
     def get_author_company_reviewer_score(self) -> float:
         """Get the company reviewer score for the author"""
         return self.dev_db.get_company_reviewer_score(self.get_author_email())
+
+    def get_author_postings(self) -> int:
+        """Get the number of change-sets the author has posted"""
+        return self.dev_db.get_posting_count(self.get_author_email())
 
     def get_external_review_tags(self) -> List[Tuple[str, str]]:
         """

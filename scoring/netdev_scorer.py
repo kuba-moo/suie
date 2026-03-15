@@ -78,6 +78,13 @@ def score_patch(context, patch_score):
     if author_score < -40:
         score += 12
         patch_score.add_comment(f"Author score negative ({author_score})")
+        patch_score.emojis += '\U0001F534'  # red circle
+
+    # Check 2b: New author (few postings)
+    author_postings = context.get_author_postings()
+    if author_postings < 10:
+        patch_score.add_comment(f"New author ({author_postings} postings)")
+        patch_score.emojis += '\U0001F7E0'  # orange circle
 
     # Check 3: Company score
     company_score = context.get_author_company_reviewer_score()
