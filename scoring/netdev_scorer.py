@@ -118,6 +118,7 @@ def score_patch(context, patch_score):
     # Check 6: Comment threads
     if context.review_comments_present:
         patch_score.add_comment("Review comments")
+        patch_score.emojis += '\U0001F4AC'
         score += 48
 
     # Final: account for time spent

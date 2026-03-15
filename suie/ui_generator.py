@@ -1443,7 +1443,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Score
             const scoreEl = document.createElement('div');
             scoreEl.className = 'series-score';
-            scoreEl.textContent = formatScoreAsTime(series.score);
+            scoreEl.textContent = (series.emojis || '') + formatScoreAsTime(series.score);
             scoreEl.title = `Score: ${series.score.toFixed(2)} hours`;
             header.appendChild(scoreEl);
 

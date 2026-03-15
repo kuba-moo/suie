@@ -18,6 +18,7 @@ class PatchScore:
     patch_id: int
     score: float
     comments: List[str] = field(default_factory=list)
+    emojis: str = ""
 
     def add_comment(self, comment: str):
         """Add a diagnostic comment"""
@@ -31,6 +32,7 @@ class SeriesScore:
     score: float
     patch_scores: List[PatchScore] = field(default_factory=list)
     comments: List[str] = field(default_factory=list)
+    emojis: str = ""
 
 
 class DeveloperDatabase:
@@ -754,5 +756,15 @@ class ScoringEngine:
             series_score.score = max(ps.score for ps in series_score.patch_scores)
         else:
             series_score.score = float('inf')  # No patches, push to bottom
+
+        # Aggregate unique emojis from all patch scores (preserving order)
+        seen = set()
+        all_emojis = []
+        for ps in series_score.patch_scores:
+            for ch in ps.emojis:
+                if ch not in seen:
+                    seen.add(ch)
+                    all_emojis.append(ch)
+        series_score.emojis = ''.join(all_emojis)
 
         return series_score

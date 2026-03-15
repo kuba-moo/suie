@@ -1820,6 +1820,7 @@ class SuieApp:
             "age_weekend_hours": age_breakdown["weekend_hours"],
             "age_total_hours": age_breakdown["total_hours"],
             "score": series_score.score,
+            "emojis": series_score.emojis,
             "is_inactive": is_inactive,
             "needs_ack": series_state == "needs-ack",
             "state": series_state,
