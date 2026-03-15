@@ -3,7 +3,7 @@ Netdev scoring function for Suie
 
 The scoring function receives:
 - context: ScoringContext object with all patch/series information
-- patch_score: PatchScore object to populate with diagnostic comments
+- patch_score: PatchScore object to populate with score lines
 """
 
 maintainer_group = {
@@ -29,7 +29,7 @@ def score_patch(context, patch_score):
                                         (pass/warning/fail/missing)
                  context.additional_checks: List of checks not in expected_checks config
 
-        patch_score: PatchScore object where you can add diagnostic comments
+        patch_score: PatchScore object where you can add score lines
 
     Returns:
         float: Score value (lower = higher priority)
@@ -56,11 +56,11 @@ def score_patch(context, patch_score):
             score += 3
 
     if missing_checks:
-        patch_score.add_comment(f"Missing checks: {', '.join(missing_checks)}")
+        patch_score.add_score_line(f"Missing checks: {', '.join(missing_checks)}", 24 * len(missing_checks))
     if failed_checks:
-        patch_score.add_comment(f"Failed checks: {', '.join(failed_checks)}")
+        patch_score.add_score_line(f"Failed checks: {', '.join(failed_checks)}", 12 * len(failed_checks))
     if warning_checks:
-        patch_score.add_comment(f"Warning checks: {', '.join(warning_checks)}")
+        patch_score.add_score_line(f"Warning checks: {', '.join(warning_checks)}", 3 * len(warning_checks))
 
     # Check additional checks (not in expected_checks config)
     if context.additional_checks:
@@ -68,7 +68,7 @@ def score_patch(context, patch_score):
                            if c.get('state') in ['fail', 'warning']]
         if additional_failed:
             score += 1
-            patch_score.add_comment(f"Additional checks failed: {', '.join(additional_failed)}")
+            patch_score.add_score_line(f"Additional checks failed: {', '.join(additional_failed)}", 1)
 
     # Check 2: Author reputation affects score
     author_score = context.get_author_reviewer_score()
@@ -77,21 +77,19 @@ def score_patch(context, patch_score):
     # in the red on review scores.
     if author_score < -40:
         score += 12
-        patch_score.add_comment(f"Author score negative ({author_score})")
-        patch_score.emojis += '\U0001F534'  # red circle
+        patch_score.add_score_line(f"Author score negative ({author_score})", 12, '\U0001F534')
 
     # Check 2b: New author (few postings)
     author_postings = context.get_author_postings()
     if author_postings < 10:
-        patch_score.add_comment(f"New author ({author_postings} postings)")
-        patch_score.emojis += '\U0001F7E0'  # orange circle
+        patch_score.add_score_line(f"New author ({author_postings} postings)", 0, '\U0001F7E0')
 
     # Check 3: Company score
     company_score = context.get_author_company_reviewer_score()
 
     if company_score < 0:
         score += 24
-        patch_score.add_comment(f"Company score negative ({company_score})")
+        patch_score.add_score_line(f"Company score negative ({company_score})", 24)
 
     # Check 4: Reviews
     external_reviews = context.get_external_review_tags()
@@ -103,11 +101,12 @@ def score_patch(context, patch_score):
 
     if approved:
         # No extra wait, ready to go!
-        patch_score.add_comment("Approved")
+        patch_score.add_score_line("Approved", 0)
     else:
         # "Normal" reviewers
-        score += 24 - 12 * min(len(external_reviews), 2)
-        patch_score.add_comment(f"{len(external_reviews)} reviews")
+        review_adj = 24 - 12 * min(len(external_reviews), 2)
+        score += review_adj
+        patch_score.add_score_line(f"{len(external_reviews)} reviews", review_adj)
 
     # Check 5: Fresh comments:
     since_comment = context.time_since_last_comment_hours
@@ -115,17 +114,18 @@ def score_patch(context, patch_score):
         since_comment = 999
 
     if score < 48 and since_comment <= 6:
-        score += (6 - context.time_since_last_comment_hours)
+        adj = int(6 - context.time_since_last_comment_hours)
+        score += adj
         score = min(score, 48)
-        patch_score.add_comment("Recent comments/review")
+        patch_score.add_score_line("Recent comments/review", adj)
     elif since_comment <= 2:
-        score += (2 - context.time_since_last_comment_hours)
-        patch_score.add_comment("Recent comments/review")
+        adj = int(2 - context.time_since_last_comment_hours)
+        score += adj
+        patch_score.add_score_line("Recent comments/review", adj)
 
     # Check 6: Comment threads
     if context.review_comments_present:
-        patch_score.add_comment("Review comments")
-        patch_score.emojis += '\U0001F4AC'
+        patch_score.add_score_line("Review comments", 48, '\U0001F4AC')
         score += 48
 
     # Final: account for time spent

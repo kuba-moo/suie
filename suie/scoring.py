@@ -17,12 +17,11 @@ class PatchScore:
     """Represents the score and diagnostic information for a patch"""
     patch_id: int
     score: float
-    comments: List[str] = field(default_factory=list)
-    emojis: str = ""
+    score_lines: List[tuple] = field(default_factory=list)  # [(emoji|None, comment, adjustment), ...]
 
-    def add_comment(self, comment: str):
-        """Add a diagnostic comment"""
-        self.comments.append(comment)
+    def add_score_line(self, comment: str, adjustment: int, emoji: str = None):
+        """Add a score line with an optional emoji, comment, and score adjustment"""
+        self.score_lines.append((emoji, comment, adjustment))
 
 
 @dataclass
@@ -31,8 +30,7 @@ class SeriesScore:
     series_id: int
     score: float
     patch_scores: List[PatchScore] = field(default_factory=list)
-    comments: List[str] = field(default_factory=list)
-    emojis: str = ""
+    score_lines: List[tuple] = field(default_factory=list)  # [(emoji|None, comment, adjustment), ...]
 
 
 class DeveloperDatabase:
@@ -732,7 +730,7 @@ class ScoringEngine:
         except Exception as e:
             logger.error("Error scoring patch %d: %s", patch['id'], e)
             patch_score.score = float('inf')  # Push to bottom
-            patch_score.add_comment(f"Scoring error: {e}")
+            patch_score.add_score_line(f"Scoring error: {e}", 0)
 
         return patch_score
 
@@ -780,14 +778,14 @@ class ScoringEngine:
         else:
             series_score.score = float('inf')  # No patches, push to bottom
 
-        # Aggregate unique emojis from all patch scores (preserving order)
-        seen = set()
-        all_emojis = []
+        # Aggregate score lines from all patch scores (deduplicate by emoji)
+        seen_emojis = set()
         for ps in series_score.patch_scores:
-            for ch in ps.emojis:
-                if ch not in seen:
-                    seen.add(ch)
-                    all_emojis.append(ch)
-        series_score.emojis = ''.join(all_emojis)
+            for emoji, comment, adjustment in ps.score_lines:
+                if emoji and emoji in seen_emojis:
+                    continue
+                if emoji:
+                    seen_emojis.add(emoji)
+                series_score.score_lines.append((emoji, comment, adjustment))
 
         return series_score

@@ -1443,8 +1443,22 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Score
             const scoreEl = document.createElement('div');
             scoreEl.className = 'series-score';
-            scoreEl.textContent = (series.emojis || '') + formatScoreAsTime(series.score);
             scoreEl.title = `Score: ${series.score.toFixed(2)} hours`;
+
+            // Add emoji indicators from score lines with individual tooltips
+            if (series.score_lines) {
+                series.score_lines.forEach(line => {
+                    if (line.emoji) {
+                        const emojiSpan = document.createElement('span');
+                        emojiSpan.textContent = line.emoji;
+                        emojiSpan.title = `${line.comment} (${line.adjustment >= 0 ? '+' : ''}${line.adjustment}h)`;
+                        emojiSpan.style.cursor = 'help';
+                        scoreEl.appendChild(emojiSpan);
+                    }
+                });
+            }
+
+            scoreEl.appendChild(document.createTextNode(formatScoreAsTime(series.score)));
             header.appendChild(scoreEl);
 
             // State + Delegates (combined column with state on top, delegates below)
@@ -1762,10 +1776,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 scoreEl.className = 'patch-score';
                 scoreEl.textContent = `Score: ${patch.score.toFixed(2)}`;
 
-                if (patch.score_comments.length > 0) {
+                if (patch.score_lines && patch.score_lines.length > 0) {
                     const commentsEl = document.createElement('div');
                     commentsEl.className = 'score-comments';
-                    commentsEl.textContent = patch.score_comments.join('; ');
+                    commentsEl.textContent = patch.score_lines.map(line => {
+                        const prefix = line.emoji ? line.emoji + ' ' : '';
+                        const adj = line.adjustment >= 0 ? '+' + line.adjustment : '' + line.adjustment;
+                        return `${prefix}${line.comment} (${adj}h)`;
+                    }).join('; ');
                     scoreEl.appendChild(commentsEl);
                 }
 
