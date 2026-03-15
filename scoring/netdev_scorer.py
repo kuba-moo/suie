@@ -37,6 +37,7 @@ def score_patch(context, patch_score):
 
     # Application target for perfection is 1 day.
     score = 24
+    reviewer_boost = False
 
     # Check 1: Process expected checks from configuration
     # context.check_outcomes contains the outcome for each expected check
@@ -72,24 +73,26 @@ def score_patch(context, patch_score):
 
     # Check 2: Author reputation affects score
     author_score = context.get_author_reviewer_score()
-
-    # Give everyone a credit of 40, most occasional posters will be slightly
-    # in the red on review scores.
-    if author_score < -40:
-        score += 12
-        patch_score.add_score_line(f"Author score negative ({author_score})", 12, '\U0001F534')
-
-    # Check 2b: New author (few postings)
     author_postings = context.get_author_postings()
-    if author_postings < 10:
-        patch_score.add_score_line(f"New author ({author_postings} postings)", 0, '\U0001F7E0')
+
+    # Most newbies are LLM-happy, give then 24h of delay
+    if author_postings < 3:
+        score += 24
+        patch_score.add_score_line(f"New author ({author_postings} postings)", 0, '🟠')
+    elif author_score < -40:
+        # Give everyone a credit of 40, most occasional posters will be slightly
+        # in the red on review scores.
+        score += 12
+        patch_score.add_score_line(f"Author score negative ({author_score})", 12, '🔴')
+    elif author_score > 50:
+        reviewer_boost = True
 
     # Check 3: Company score
     company_score = context.get_author_company_reviewer_score()
 
     if company_score < 0:
         score += 24
-        patch_score.add_score_line(f"Company score negative ({company_score})", 24)
+        patch_score.add_score_line(f"Company score negative ({company_score})", 24, '🟥')
 
     # Check 4: Reviews
     external_reviews = context.get_external_review_tags()
@@ -125,8 +128,13 @@ def score_patch(context, patch_score):
 
     # Check 6: Comment threads
     if context.review_comments_present:
-        patch_score.add_score_line("Review comments", 48, '\U0001F4AC')
+        patch_score.add_score_line("Review comments", 48, '💬')
         score += 48
+
+    if reviewer_boost:
+        adj = max(0, min(12, score - 36))
+        patch_score.add_score_line(f"Active reviewer ({author_score})", -adj, '🟢')
+        score -= adj
 
     # Final: account for time spent
     score -= context.series_age_weekday_hours
