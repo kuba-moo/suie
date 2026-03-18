@@ -812,6 +812,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         <option value="18">18h+</option>
                         <option value="21">21h+</option>
                         <option value="24">1d+</option>
+                        <option value="36">1.5d+</option>
                         <option value="48">2d+</option>
                         <option value="72">3d+</option>
                     </select>
