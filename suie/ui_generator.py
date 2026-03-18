@@ -661,7 +661,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .series-row.expanded {
-            border: 1px solid var(--text-link);
+            border: 1px solid color-mix(in srgb, var(--text-link) 40%, transparent);
             border-radius: 4px;
             margin: 4px 0;
         }
