@@ -797,8 +797,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <label for="hide-inactive">Hide inactive series</label>
                 </div>
                 <div class="control-group">
-                    <input type="checkbox" id="hide-needs-ack" checked>
-                    <label for="hide-needs-ack">Hide Needs ACK</label>
+                    <label for="needs-ack-filter">Needs ACK:</label>
+                    <select id="needs-ack-filter">
+                        <option value="hide" selected>Hide</option>
+                        <option value="any">Any</option>
+                        <option value="only">Only</option>
+                    </select>
                 </div>
                 <div class="control-group">
                     <label for="min-age-filter">Min age:</label>
@@ -873,7 +877,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // Event listeners
             document.getElementById('hide-inactive').addEventListener('change', renderSeries);
-            document.getElementById('hide-needs-ack').addEventListener('change', renderSeries);
+            document.getElementById('needs-ack-filter').addEventListener('change', renderSeries);
             document.getElementById('min-age-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
             document.getElementById('tree-filter').addEventListener('change', onTreeChange);
@@ -974,7 +978,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         function renderSeries() {
             const container = document.getElementById('series-list');
             const hideInactive = document.getElementById('hide-inactive').checked;
-            const hideNeedsAck = document.getElementById('hide-needs-ack').checked;
+            const needsAckFilter = document.getElementById('needs-ack-filter').value;
             const minAgeFilter = parseInt(document.getElementById('min-age-filter').value);
             const delegateFilter = document.getElementById('delegate-filter').value;
             const treeFilter = document.getElementById('tree-filter').value;
@@ -1029,7 +1033,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }
 
                 // Apply needs-ack filter
-                if (hideNeedsAck && series.needs_ack) {
+                if (needsAckFilter === 'hide' && series.needs_ack) {
+                    return false;
+                }
+                if (needsAckFilter === 'only' && !series.needs_ack) {
                     return false;
                 }
 
