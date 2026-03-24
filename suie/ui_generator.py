@@ -1263,6 +1263,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 linksEl.appendChild(pwLink);
             }
 
+            if (series.lore_url) {
+                const msgid = series.lore_url.replace(/.*\/r\//, '').replace(/\/$/, '');
+                const shLink = document.createElement('a');
+                shLink.href = `https://sashiko.dev/#/patchset/${msgid}`;
+                shLink.textContent = 'Sh';
+                shLink.target = '_blank';
+                shLink.style.color = 'var(--text-link)';
+                shLink.style.textDecoration = 'none';
+                shLink.style.fontWeight = '500';
+                shLink.addEventListener('click', (e) => e.stopPropagation());
+                shLink.addEventListener('mouseover', () => shLink.style.textDecoration = 'underline');
+                shLink.addEventListener('mouseout', () => shLink.style.textDecoration = 'none');
+                linksEl.appendChild(shLink);
+            }
+
             idLinksEl.appendChild(linksEl);
             header.appendChild(idLinksEl);
 
