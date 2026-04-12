@@ -483,6 +483,13 @@ class ScoringContext:
         discussion_commenter_names = set()
         discussion_commenter_emails = set()
 
+        # Identify the series author so we can skip their comments —
+        # the author replying to feedback is not an unresolved discussion.
+        series_submitter = self.series.get('submitter', {})
+        series_author_email = (series_submitter.get('email') or '').strip().lower()
+        if series_author_email:
+            series_author_email = self.dev_db.get_canonical_identity(series_author_email).lower()
+
         # Check comments for tags
         all_comments = list(self.comments)
         if self.cover_comments:
@@ -500,10 +507,15 @@ class ScoringContext:
                     submitter = comment.get('submitter', {})
                     name = (submitter.get('name') or '').strip().lower()
                     email = (submitter.get('email') or '').strip()
-                    if name:
-                        discussion_commenter_names.add(name)
+                    canonical = ''
                     if email:
                         canonical = self.dev_db.get_canonical_identity(email).lower()
+                    # Skip the series author's own comments
+                    if canonical and canonical == series_author_email:
+                        continue
+                    if name:
+                        discussion_commenter_names.add(name)
+                    if canonical:
                         discussion_commenter_emails.add(canonical)
 
         # Check if any discussion commenters are unresolved (didn't provide tags)
