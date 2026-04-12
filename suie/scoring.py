@@ -483,6 +483,26 @@ class ScoringContext:
         discussion_commenter_names = set()
         discussion_commenter_emails = set()
 
+        # Build a set of author identities to exclude from discussion commenters.
+        # This includes the patch submitter and the real author (from the patch
+        # content's "From:" line, when someone posts on behalf of another person).
+        author_emails = set()
+        author_names = set()
+
+        # Patch submitter (the person who posted to the mailing list)
+        canonical, name = self._get_identity(self.patch.get('submitter', {}))
+        if canonical:
+            author_emails.add(canonical)
+        if name:
+            author_names.add(name)
+
+        # Real author from patch content "From: Name <email>" line
+        canonical, name = self._get_from_author()
+        if canonical:
+            author_emails.add(canonical)
+        if name:
+            author_names.add(name)
+
         # Check comments for tags
         all_comments = list(self.comments)
         if self.cover_comments:
@@ -497,13 +517,16 @@ class ScoringContext:
             tag_pattern = r'^(?:Reviewed-by|Acked-by|Tested-by):\s*'
             if not re.search(tag_pattern, content, re.IGNORECASE | re.MULTILINE):
                 if len(content.strip()) > 50:
-                    submitter = comment.get('submitter', {})
-                    name = (submitter.get('name') or '').strip().lower()
-                    email = (submitter.get('email') or '').strip()
+                    canonical, name = self._get_identity(comment.get('submitter', {}))
+
+                    # Skip comments from patch/series authors
+                    if (canonical and canonical in author_emails) or \
+                       (name and name in author_names):
+                        continue
+
                     if name:
                         discussion_commenter_names.add(name)
-                    if email:
-                        canonical = self.dev_db.get_canonical_identity(email).lower()
+                    if canonical:
                         discussion_commenter_emails.add(canonical)
 
         # Check if any discussion commenters are unresolved (didn't provide tags)
@@ -538,6 +561,27 @@ class ScoringContext:
         unresolved_emails = discussion_commenter_emails - tag_provider_emails
         if unresolved_names and unresolved_emails:
             self.review_comments_present = True
+
+    def _get_identity(self, submitter: Dict) -> tuple:
+        """Return (canonical_email, name) from a submitter dict."""
+        name = (submitter.get('name') or '').strip().lower()
+        email = (submitter.get('email') or '').strip()
+        canonical = self.dev_db.get_canonical_identity(email).lower() if email else ''
+        return canonical, name
+
+    def _get_from_author(self) -> tuple:
+        """Return (canonical_email, name) of the real author from the patch content's 'From:' line."""
+        content = self.patch.get('content', '')
+        from_match = re.search(r'^From:\s*(.+?)(?:\s*<([^>]+)>)?\s*$', content, re.MULTILINE)
+        if not from_match:
+            return '', ''
+        name = (from_match.group(1) or '').strip().lower()
+        email = (from_match.group(2) or '').strip()
+        if not email and '@' in name:
+            email = name
+            name = ''
+        canonical = self.dev_db.get_canonical_identity(email).lower() if email else ''
+        return canonical, name
 
     def _extract_tags_from_headers(self, headers: Dict):
         """Extract review tags from email headers"""
