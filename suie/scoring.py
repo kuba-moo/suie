@@ -483,12 +483,25 @@ class ScoringContext:
         discussion_commenter_names = set()
         discussion_commenter_emails = set()
 
-        # Identify the series author so we can skip their comments —
-        # the author replying to feedback is not an unresolved discussion.
+        # Identify authors so we can skip their comments —
+        # an author replying to feedback is not an unresolved discussion.
+        # Track both the series poster and per-patch code authors (From: header).
+        author_emails = set()
         series_submitter = self.series.get('submitter', {})
-        series_author_email = (series_submitter.get('email') or '').strip().lower()
-        if series_author_email:
-            series_author_email = self.dev_db.get_canonical_identity(series_author_email).lower()
+        series_email = (series_submitter.get('email') or '').strip()
+        if series_email:
+            author_emails.add(self.dev_db.get_canonical_identity(series_email).lower())
+        # Check each patch for a different code author (From: line in content)
+        for p in self.all_patches:
+            patch_submitter = p.get('submitter', {})
+            patch_email = (patch_submitter.get('email') or '').strip()
+            if patch_email:
+                author_emails.add(self.dev_db.get_canonical_identity(patch_email).lower())
+            # Parse "From: Name <email>" at the start of patch content
+            patch_content = p.get('content', '')
+            from_match = re.match(r'^From:\s*[^<]*<([^>]+)>', patch_content)
+            if from_match:
+                author_emails.add(self.dev_db.get_canonical_identity(from_match.group(1).strip()).lower())
 
         # Check comments for tags
         all_comments = list(self.comments)
@@ -510,8 +523,8 @@ class ScoringContext:
                     canonical = ''
                     if email:
                         canonical = self.dev_db.get_canonical_identity(email).lower()
-                    # Skip the series author's own comments
-                    if canonical and canonical == series_author_email:
+                    # Skip comments from any of the patch/series authors
+                    if canonical and canonical in author_emails:
                         continue
                     if name:
                         discussion_commenter_names.add(name)
