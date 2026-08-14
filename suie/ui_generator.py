@@ -396,7 +396,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         .mute-clock {
             font-size: 14px;
-            margin-right: 4px;
+            flex-shrink: 0;
             cursor: help;
         }
 
@@ -1518,6 +1518,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 cleanTitle = series.title.substring(treeMatch[0].length);
             }
 
+            // Shown only while the series is muted, see applyMuteState().
+            // Sits outside the title so the line clamp does not eat it.
+            const clockEl = document.createElement('span');
+            clockEl.className = 'mute-clock';
+            clockEl.textContent = '🕐';
+            clockEl.title = 'Muted, middle click the series again to clear';
+            titleContainerEl.appendChild(clockEl);
+
             // Title (left side)
             const titleEl = document.createElement('div');
             titleEl.className = 'series-title';
@@ -1670,14 +1678,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // State
             const stateContainer = document.createElement('div');
             stateContainer.className = 'series-state';
-
-            // Shown only while the series is muted, see applyMuteState()
-            const clockEl = document.createElement('span');
-            clockEl.className = 'mute-clock';
-            clockEl.textContent = '🕐';
-            clockEl.title = 'Muted, middle click the series again to clear';
-            stateContainer.appendChild(clockEl);
-
             if (series.state) {
                 const stateBadge = document.createElement('span');
                 stateBadge.className = 'state-badge';
