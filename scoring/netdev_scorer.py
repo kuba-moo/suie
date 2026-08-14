@@ -19,6 +19,16 @@ trusted_reviewer_group = {
     "Russell King <kernel@armlinux.org.uk>",
 }
 
+# Maintainers sending us pull requests, the code was reviewed in their
+# tree, all we do is wait out the base delay before pulling.
+upstream_pr_group = {
+    "steffen.klassert@secunet.com",
+    "pablo@netfilter.org",
+    "fw@strlen.de",
+    "johannes@sipsolutions.net",
+    "luiz.dentz@gmail.com",
+}
+
 def score_patch(context, patch_score):
     """
     Score a patch based on readiness to be applied
@@ -38,6 +48,11 @@ def score_patch(context, patch_score):
     # Application target for perfection is 1 day.
     score = 24
     reviewer_boost = False
+
+    # Pull requests: nothing to score, base delay and nothing else
+    if context.get_author_email().strip().lower() in upstream_pr_group:
+        patch_score.add_score_line("Upstream PR", 0, '⭐')
+        return score - context.series_age_weekday_hours
 
     # Check 1: Process expected checks from configuration
     # context.check_outcomes contains the outcome for each expected check
