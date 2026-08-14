@@ -15,6 +15,9 @@ ui:
   output_path: "output/index.html"
   hide_inactive_default: true
 
+  # Machine readable scores, defaults to scores.json next to the HTML
+  scores_path: "output/scores.json"
+
   # Base URL for Sashiko links, message ID gets appended (empty to hide them)
   sashiko_url: "https://sashiko.dev/#/patchset/"
 

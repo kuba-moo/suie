@@ -3,6 +3,7 @@
 import argparse
 import fnmatch
 import logging
+import math
 import re
 import sys
 import time
@@ -242,6 +243,7 @@ class SuieApp:
             expected_checks=self.config["ui"].get("expected_checks", []),
             tracking_scripts=self.config["ui"].get("tracking_scripts", []),
             sashiko_url=self.config["ui"].get("sashiko_url", DEFAULT_SASHIKO_URL),
+            scores_path=self.config["ui"].get("scores_path"),
         )
 
         # Load MAINTAINERS file if configured
@@ -387,6 +389,7 @@ class SuieApp:
 
         # Generate UI
         self.ui_generator.generate(scored_series, sorted(delegates))
+        self.ui_generator.generate_scores(scored_series)
 
         logger.info("UI regenerated with %d series", len(scored_series))
 
@@ -1020,6 +1023,74 @@ class SuieApp:
         except (ValueError, AttributeError) as e:
             logger.warning("Failed to calculate age for date '%s': %s", date_str, e)
             return {"weekday_hours": 0, "weekend_hours": 0, "total_hours": 0}
+
+    @staticmethod
+    def _add_weekday_hours(start: datetime, hours: float) -> datetime:
+        """
+        Move a timestamp by a number of weekday hours.
+
+        Scores tick down with the age of the series, which only counts
+        weekdays, so the wall clock has to jump over the weekends the
+        score sits still through. Negative hours move into the past.
+
+        Args:
+            start: Timestamp to move, must be timezone aware
+            hours: Weekday hours to add (or subtract, if negative)
+
+        Returns:
+            The moved timestamp
+        """
+        def midnight(when: datetime) -> datetime:
+            return when.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        current = start
+
+        if hours >= 0:
+            remaining = hours
+            # Time spent on a weekend does not count, start on Monday
+            if current.weekday() >= 5:
+                current = midnight(current + timedelta(days=7 - current.weekday()))
+
+            while True:
+                # Weekday hours left before the coming weekend
+                saturday = midnight(current + timedelta(days=5 - current.weekday()))
+                available = (saturday - current).total_seconds() / 3600
+                if remaining <= available:
+                    return current + timedelta(hours=remaining)
+                remaining -= available
+                current = saturday + timedelta(days=2)
+        else:
+            remaining = -hours
+            if current.weekday() >= 5:
+                current = midnight(current - timedelta(days=current.weekday() - 5))
+
+            while True:
+                # Weekday hours back to the preceding weekend
+                monday = midnight(current - timedelta(days=current.weekday()))
+                available = (current - monday).total_seconds() / 3600
+                if remaining <= available:
+                    return current - timedelta(hours=remaining)
+                remaining -= available
+                current = monday - timedelta(days=2)
+
+    @classmethod
+    def _calculate_score_zero_time(cls, score: float) -> Optional[str]:
+        """
+        Work out when a score will reach zero, i.e. when the series is due.
+
+        Args:
+            score: Series score, in weekday hours still to wait
+
+        Returns:
+            ISO 8601 UTC timestamp, to the second, or None if the score is
+            not a number. Series which are already due get a timestamp in
+            the past.
+        """
+        if not math.isfinite(score):
+            return None
+
+        due = cls._add_weekday_hours(datetime.now(timezone.utc), score)
+        return due.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @staticmethod
     def _deduplicate_checks(checks: List[Dict]) -> Dict[str, Dict]:
@@ -1757,6 +1828,24 @@ class SuieApp:
                 if first_patch:
                     lore_url = first_patch.get("list_archive_url")
 
+        # Get the message ID the same way, cover letter before first patch
+        msgid = None
+        cover_letter = self.state.get_cover_letter(series["id"])
+        if cover_letter:
+            msgid = cover_letter.get("msgid")
+
+        if not msgid and series_score.patch_scores:
+            first_patch_id = series_score.patch_scores[0].patch_id
+            first_patch = self.state.patches.get(first_patch_id)
+            if first_patch:
+                msgid = first_patch.get("msgid")
+
+        if msgid:
+            # Patchwork keeps the angle brackets, Lore and b4 do not
+            msgid = msgid.strip().strip("<>")
+        elif lore_url and "/r/" in lore_url:
+            msgid = lore_url.rstrip("/").split("/r/", 1)[1]
+
         # Calculate age excluding weekends
         date_normalized = self._normalize_date(series.get("date", ""))
         age_breakdown = self._calculate_age_excluding_weekends(date_normalized)
@@ -1821,6 +1910,7 @@ class SuieApp:
             "age_weekend_hours": age_breakdown["weekend_hours"],
             "age_total_hours": age_breakdown["total_hours"],
             "score": series_score.score,
+            "score_zero_at": self._calculate_score_zero_time(series_score.score),
             "score_lines": [{"emoji": e, "comment": c, "adjustment": a} for e, c, a in series_score.score_lines],
             "is_inactive": is_inactive,
             "needs_ack": series_state == "needs-ack",
@@ -1832,6 +1922,7 @@ class SuieApp:
             "reviewers_partial": reviewers_partial,               # Reviewed some patches
             "commenters": series_commenters,
             "lore_url": lore_url,
+            "msgid": msgid,
             "patchwork_url": series.get("web_url"),
             "checks_summary": {
                 "failed": sorted(series_failed_checks),

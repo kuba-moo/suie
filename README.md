@@ -172,6 +172,39 @@ def score_patch(context, patch_score):
     return score
 ```
 
+## Score Export
+
+Alongside the HTML, the UI generator writes `output/scores.json` (configurable
+via `ui.scores_path`), for tooling which wants to know when a series is due
+without scraping the page:
+
+```json
+{
+  "generated_at": "2026-08-14T15:52:10Z",
+  "by_series_id": {
+    "1020777": "2026-08-14T23:52:10Z"
+  },
+  "by_message_id": {
+    "20251107080749.26936-1-jonas.gorski@gmail.com": "2026-08-14T23:52:10Z"
+  }
+}
+```
+
+The file is written without any whitespace, the sample above is formatted for
+readability. It is meant to be fetched by other services, so it holds nothing
+beyond the two indexes, roughly 110 bytes per series.
+
+Both indexes hold the same scores, so a series can be looked up by either key.
+The message ID comes from the cover letter, or the first patch if there is no
+cover letter, and carries no angle brackets, matching Lore URLs and b4. Series
+without a message ID appear under their series ID only.
+
+Unlike the score in the UI, the score here is the UTC time at which the series
+reaches a zero score, i.e. when it is due to be applied. Scores count down in
+weekday hours only, so the timestamp skips over weekends. Series which are
+already due carry a timestamp in the past. Series with no usable score, which
+means the scoring function failed, are left out.
+
 ## Request Logging
 
 All Patchwork API requests are logged to `output/patchwork_requests.json` with:

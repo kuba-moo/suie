@@ -1,5 +1,6 @@
 """Web UI generator for displaying patches"""
 
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -19,7 +20,8 @@ class UIGenerator:
     def __init__(self, output_path: str, hide_inactive_default: bool = True,
                  expected_checks: Optional[List[str]] = None,
                  tracking_scripts: Optional[List[str]] = None,
-                 sashiko_url: str = DEFAULT_SASHIKO_URL):
+                 sashiko_url: str = DEFAULT_SASHIKO_URL,
+                 scores_path: Optional[str] = None):
         """
         Initialize the UI generator
 
@@ -30,12 +32,16 @@ class UIGenerator:
             tracking_scripts: List of tracking script HTML strings to insert in <head>
             sashiko_url: Base URL for Sashiko patchset links, the message ID is
                 appended to it. Set to empty to hide the links.
+            scores_path: Path where the machine readable score file should be
+                written, defaults to scores.json next to the HTML
         """
         self.output_path = output_path
         self.hide_inactive_default = hide_inactive_default
         self.expected_checks = expected_checks or []
         self.tracking_scripts = tracking_scripts or []
         self.sashiko_url = sashiko_url
+        self.scores_path = scores_path or os.path.join(
+            os.path.dirname(output_path), "scores.json")
 
     def generate(self, series_scores: List[Dict], delegates: List[str]):
         """
@@ -73,6 +79,48 @@ class UIGenerator:
             f.write(html)
 
         logger.info("Generated UI at %s", self.output_path)
+
+    def generate_scores(self, series_scores: List[Dict]):
+        """
+        Write the machine readable score file
+
+        The score is the UTC time at which the series reaches a zero score,
+        which is what the UI counts down to in the Score column. Series
+        which are already due carry a timestamp in the past.
+
+        The file is fetched by other services, so it is kept small: no
+        whitespace, and the scores hang directly off the two indexes
+        rather than off a record repeating what the key already says.
+
+        Args:
+            series_scores: List of series with scores and metadata
+        """
+        by_series_id = {}
+        by_message_id = {}
+
+        for series in series_scores:
+            score = series.get("score_zero_at")
+            if not score:
+                continue
+
+            by_series_id[str(series["id"])] = score
+            if series.get("msgid"):
+                by_message_id[series["msgid"]] = score
+
+        data = {
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "by_series_id": by_series_id,
+            "by_message_id": by_message_id,
+        }
+
+        directory = os.path.dirname(self.scores_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
+        with open(self.scores_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, separators=(',', ':'), sort_keys=True)
+
+        logger.info("Generated scores at %s", self.scores_path)
 
     def _render_template(self, data: Dict) -> str:
         """Render the HTML template"""
