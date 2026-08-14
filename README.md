@@ -104,10 +104,13 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
 - **Filtering**: Filter by delegate to see only series with patches assigned to specific people
   - Delegate filter updates the URL (e.g., `?delegate=john`)
   - Bookmarkable/shareable filtered views
-- **Hide Inactive**: Toggle to hide archived or completed series
+- **Inactive**: Toggle to show archived or completed series, off by default
+  - The default can be changed with `ui.hide_inactive_default`
+- **Unassigned**: Toggle to show series nobody picked up yet, at the top of the
+  list, no matter which delegate is selected
 - **Mute**: Middle click a series to dim it and mark it with a clock
   - For series already acted on, while the backend catches up
-  - Purely visual, the series stays in the list, "Hide Inactive" is unaffected
+  - Purely visual, the series stays in the list, "Inactive" is unaffected
   - Middle click again to clear
   - Saved in browser's localStorage, expires an hour after it was set
 

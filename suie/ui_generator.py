@@ -884,8 +884,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
             <div class="controls">
                 <div class="control-group">
-                    <input type="checkbox" id="hide-inactive" {% if hide_inactive_default %}checked{% endif %}>
-                    <label for="hide-inactive">Hide inactive series</label>
+                    <input type="checkbox" id="show-inactive" {% if not hide_inactive_default %}checked{% endif %}>
+                    <label for="show-inactive">Inactive</label>
                 </div>
                 <div class="control-group">
                     <label for="needs-ack-filter">Needs ACK:</label>
@@ -924,7 +924,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </div>
                 <div class="control-group">
                     <input type="checkbox" id="include-unassigned">
-                    <label for="include-unassigned">Include unassigned</label>
+                    <label for="include-unassigned">Unassigned</label>
                 </div>
                 <div class="control-group">
                     <label for="tree-filter">Tree:</label>
@@ -973,7 +973,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             updateStats();
 
             // Event listeners
-            document.getElementById('hide-inactive').addEventListener('change', renderSeries);
+            document.getElementById('show-inactive').addEventListener('change', renderSeries);
             document.getElementById('needs-ack-filter').addEventListener('change', renderSeries);
             document.getElementById('min-age-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
@@ -1147,7 +1147,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         function renderSeries() {
             const container = document.getElementById('series-list');
-            const hideInactive = document.getElementById('hide-inactive').checked;
+            const showInactive = document.getElementById('show-inactive').checked;
             const needsAckFilter = document.getElementById('needs-ack-filter').value;
             const minAgeFilter = parseInt(document.getElementById('min-age-filter').value);
             const delegateFilter = document.getElementById('delegate-filter').value;
@@ -1201,7 +1201,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Filter and sort data
             let filteredSeries = seriesData.filter(series => {
                 // Apply inactive filter
-                if (hideInactive && series.is_inactive) {
+                if (!showInactive && series.is_inactive) {
                     return false;
                 }
 
