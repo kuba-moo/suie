@@ -510,6 +510,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #c9d1d9;
         }
 
+        .unassigned-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            background-color: #ffeef0;
+            color: #d73a49;
+        }
+
+        [data-theme="dark"] .unassigned-badge {
+            background-color: #3d1319;
+            color: #ff7b72;
+        }
+
         .reviewer-badge {
             padding: 2px 8px;
             border-radius: 12px;
@@ -855,6 +869,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </select>
                 </div>
                 <div class="control-group">
+                    <input type="checkbox" id="include-unassigned">
+                    <label for="include-unassigned">Include unassigned</label>
+                </div>
+                <div class="control-group">
                     <label for="tree-filter">Tree:</label>
                     <select id="tree-filter">
                         <option value="">All</option>
@@ -904,6 +922,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             document.getElementById('needs-ack-filter').addEventListener('change', renderSeries);
             document.getElementById('min-age-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
+            document.getElementById('include-unassigned').addEventListener('change', renderSeries);
             document.getElementById('tree-filter').addEventListener('change', onTreeChange);
             document.getElementById('fold-all').addEventListener('click', foldAllSeries);
             document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -999,12 +1018,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             renderSeries();
         }
 
+        function isUnassigned(series) {
+            return !series.delegates || series.delegates.length === 0;
+        }
+
         function renderSeries() {
             const container = document.getElementById('series-list');
             const hideInactive = document.getElementById('hide-inactive').checked;
             const needsAckFilter = document.getElementById('needs-ack-filter').value;
             const minAgeFilter = parseInt(document.getElementById('min-age-filter').value);
             const delegateFilter = document.getElementById('delegate-filter').value;
+            const includeUnassigned = document.getElementById('include-unassigned').checked;
             const treeFilter = document.getElementById('tree-filter').value;
 
             container.innerHTML = '';
@@ -1069,11 +1093,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     return false;
                 }
 
-                // Apply delegate filter
-                if (delegateFilter) {
+                // Apply delegate filter, unassigned series are let through
+                // regardless when they are explicitly asked for
+                if (delegateFilter && !(includeUnassigned && isUnassigned(series))) {
                     if (delegateFilter === '__none__') {
-                        const hasAnyDelegate = series.patches.some(patch => patch.delegate);
-                        if (hasAnyDelegate) {
+                        if (!isUnassigned(series)) {
                             return false;
                         }
                     } else {
@@ -1107,6 +1131,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Apply sorting if not default
             if (currentSort.column !== null) {
                 filteredSeries = sortSeries(filteredSeries, currentSort.column, currentSort.direction);
+            }
+
+            // Unassigned series need a human to pick them up, they go
+            // above whatever the scoring came up with
+            if (includeUnassigned) {
+                filteredSeries = [...filteredSeries.filter(isUnassigned),
+                                  ...filteredSeries.filter(series => !isUnassigned(series))];
             }
 
             let visibleCount = filteredSeries.length;
@@ -1531,7 +1562,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Delegates
             const delegatesContainer = document.createElement('div');
             delegatesContainer.className = 'series-checks';
-            if (series.delegates && series.delegates.length > 0) {
+            if (!isUnassigned(series)) {
                 series.delegates.forEach(delegate => {
                     const badge = document.createElement('span');
                     badge.className = 'delegate-badge';
@@ -1539,6 +1570,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     badge.title = `Delegate: ${delegate}`;
                     delegatesContainer.appendChild(badge);
                 });
+            } else if (document.getElementById('include-unassigned').checked) {
+                // Explain why the series jumped the queue
+                const badge = document.createElement('span');
+                badge.className = 'unassigned-badge';
+                badge.textContent = 'Unassigned';
+                badge.title = 'Nobody has picked this series up yet';
+                delegatesContainer.appendChild(badge);
             }
             stateDelegatesEl.appendChild(delegatesContainer);
 
