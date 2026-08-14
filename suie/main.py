@@ -16,7 +16,7 @@ from .patchwork_client import PatchworkClient
 from .poller import PatchworkPoller
 from .scoring import DeveloperDatabase, ScoringEngine, SeriesScore
 from .state import StateManager
-from .ui_generator import UIGenerator
+from .ui_generator import DEFAULT_SASHIKO_URL, UIGenerator
 
 
 logger = logging.getLogger(__name__)
@@ -241,6 +241,7 @@ class SuieApp:
             hide_inactive_default=self.config["ui"].get("hide_inactive_default", True),
             expected_checks=self.config["ui"].get("expected_checks", []),
             tracking_scripts=self.config["ui"].get("tracking_scripts", []),
+            sashiko_url=self.config["ui"].get("sashiko_url", DEFAULT_SASHIKO_URL),
         )
 
         # Load MAINTAINERS file if configured

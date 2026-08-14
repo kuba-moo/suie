@@ -9,13 +9,17 @@ from jinja2 import Template
 
 logger = logging.getLogger(__name__)
 
+# Base URL for Sashiko patchset links, used when config doesn't set one
+DEFAULT_SASHIKO_URL = "https://sashiko.dev/#/patchset/"
+
 
 class UIGenerator:
     """Generates a static HTML page with interactive JavaScript"""
 
     def __init__(self, output_path: str, hide_inactive_default: bool = True,
                  expected_checks: Optional[List[str]] = None,
-                 tracking_scripts: Optional[List[str]] = None):
+                 tracking_scripts: Optional[List[str]] = None,
+                 sashiko_url: str = DEFAULT_SASHIKO_URL):
         """
         Initialize the UI generator
 
@@ -24,11 +28,14 @@ class UIGenerator:
             hide_inactive_default: Whether to hide inactive series by default
             expected_checks: List of expected check names
             tracking_scripts: List of tracking script HTML strings to insert in <head>
+            sashiko_url: Base URL for Sashiko patchset links, the message ID is
+                appended to it. Set to empty to hide the links.
         """
         self.output_path = output_path
         self.hide_inactive_default = hide_inactive_default
         self.expected_checks = expected_checks or []
         self.tracking_scripts = tracking_scripts or []
+        self.sashiko_url = sashiko_url
 
     def generate(self, series_scores: List[Dict], delegates: List[str]):
         """
@@ -51,6 +58,7 @@ class UIGenerator:
             'tree_designations': sorted(tree_designations),
             'hide_inactive_default': self.hide_inactive_default,
             'expected_checks': self.expected_checks,
+            'sashiko_url': self.sashiko_url,
             'generated_at': datetime.now(timezone.utc).isoformat()
         }
 
@@ -860,6 +868,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         // All dates are in ISO 8601 format with UTC timezone (from Patchwork API)
         const seriesData = {{ series_list | tojson }};
         const generatedAt = "{{ generated_at }}";
+        const sashikoUrl = {{ sashiko_url | tojson }};
 
         // Sorting state
         let currentSort = {
@@ -1263,10 +1272,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 linksEl.appendChild(pwLink);
             }
 
-            if (series.lore_url) {
+            if (series.lore_url && sashikoUrl) {
                 const msgid = series.lore_url.replace(/.*\/r\//, '').replace(/\/$/, '');
                 const shLink = document.createElement('a');
-                shLink.href = `https://sashiko.dev/#/patchset/${msgid}`;
+                shLink.href = `${sashikoUrl}${msgid}`;
                 shLink.textContent = 'Sh';
                 shLink.target = '_blank';
                 shLink.style.color = 'var(--text-link)';

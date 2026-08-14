@@ -15,6 +15,9 @@ ui:
   output_path: "output/index.html"
   hide_inactive_default: true
 
+  # Base URL for Sashiko links, message ID gets appended (empty to hide them)
+  sashiko_url: "https://sashiko.dev/#/patchset/"
+
   # Expected checks to monitor (show missing/failing ones)
   expected_checks:
     - "build"
