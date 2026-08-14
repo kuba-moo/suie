@@ -163,9 +163,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             box-shadow: 0 1px 3px var(--shadow);
         }
 
+        /* Title on the left, stats on the right, stats drop to their own
+         * line when the two no longer fit side by side */
+        .header-top {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
         h1 {
             font-size: 24px;
-            margin-bottom: 10px;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -777,12 +786,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .stats {
-            margin-top: 10px;
-            padding: 10px;
+            padding: 6px 10px;
             background: var(--bg-hover);
             border-radius: 6px;
             font-size: 13px;
             color: var(--text-secondary);
+            white-space: nowrap;
         }
 
         @media (max-width: 1000px) {
@@ -797,11 +806,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
     <div class="container">
         <header>
-            <h1><img src="suie.png" alt="Suie">Suie - Patch Review Queue</h1>
-            <div class="stats">
-                Generated: <span id="generated-time"></span> ago |
-                Series: <span id="visible-series"></span> / <span id="total-series"></span> |
-                Patches: <span id="visible-patches"></span> / <span id="total-patches"></span>
+            <div class="header-top">
+                <h1><img src="suie.png" alt="Suie">Suie - Patch Review Queue</h1>
+                <div class="stats">
+                    Generated: <span id="generated-time"></span> ago |
+                    Series: <span id="visible-series"></span> / <span id="total-series"></span> |
+                    Patches: <span id="visible-patches"></span> / <span id="total-patches"></span>
+                </div>
             </div>
             <div class="controls">
                 <div class="control-group">
