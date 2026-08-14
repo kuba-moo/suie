@@ -346,6 +346,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-size: 11px;
         }
 
+        .mute-clock {
+            font-size: 14px;
+            margin-right: 4px;
+            cursor: help;
+        }
+
         .state-badge {
             padding: 3px 8px;
             border-radius: 12px;
@@ -913,6 +919,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         document.addEventListener('DOMContentLoaded', () => {
             initializeTheme();
             initializeUI();
+            loadMutedSeries();
             loadFiltersFromURL();
             renderSeries();
             updateStats();
@@ -1022,6 +1029,74 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             return !series.delegates || series.delegates.length === 0;
         }
 
+        // Series muted by the user with a middle click, mapping the series ID
+        // to the time the mute was set. Muting is purely visual, it marks
+        // series we already acted on but which the backend has not caught up
+        // with yet. Mutes survive reloads but expire after an hour.
+        const MUTE_STORAGE_KEY = 'suie.muted';
+        const MUTE_LIFETIME_MS = 60 * 60 * 1000;
+
+        let mutedSeries = {};
+
+        function loadMutedSeries() {
+            try {
+                mutedSeries = JSON.parse(localStorage.getItem(MUTE_STORAGE_KEY)) || {};
+            } catch (err) {
+                console.error('Failed to load muted series:', err);
+                mutedSeries = {};
+            }
+            pruneMutedSeries();
+        }
+
+        function saveMutedSeries() {
+            try {
+                localStorage.setItem(MUTE_STORAGE_KEY, JSON.stringify(mutedSeries));
+            } catch (err) {
+                console.error('Failed to save muted series:', err);
+            }
+        }
+
+        function pruneMutedSeries() {
+            // Drop mutes older than an hour, and anything we can't make
+            // sense of, so bad state can't stick around forever
+            const cutoff = Date.now() - MUTE_LIFETIME_MS;
+            let changed = false;
+
+            Object.entries(mutedSeries).forEach(([id, muted]) => {
+                if (!(muted > cutoff)) {
+                    delete mutedSeries[id];
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                saveMutedSeries();
+            }
+        }
+
+        function isMuted(series) {
+            return mutedSeries[series.id] !== undefined;
+        }
+
+        function toggleMute(series, row) {
+            if (isMuted(series)) {
+                delete mutedSeries[series.id];
+            } else {
+                mutedSeries[series.id] = Date.now();
+            }
+            saveMutedSeries();
+            applyMuteState(series, row);
+        }
+
+        function applyMuteState(series, row) {
+            // Muted series get the same dimming as inactive ones, they are
+            // not filtered out, the clock says why the row is dimmed
+            const muted = isMuted(series);
+
+            row.classList.toggle('inactive', muted || series.is_inactive);
+            row.querySelector('.mute-clock').hidden = !muted;
+        }
+
         function renderSeries() {
             const container = document.getElementById('series-list');
             const hideInactive = document.getElementById('hide-inactive').checked;
@@ -1030,6 +1105,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const delegateFilter = document.getElementById('delegate-filter').value;
             const includeUnassigned = document.getElementById('include-unassigned').checked;
             const treeFilter = document.getElementById('tree-filter').value;
+
+            pruneMutedSeries();
 
             container.innerHTML = '';
 
@@ -1545,6 +1622,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // State
             const stateContainer = document.createElement('div');
             stateContainer.className = 'series-state';
+
+            // Shown only while the series is muted, see applyMuteState()
+            const clockEl = document.createElement('span');
+            clockEl.className = 'mute-clock';
+            clockEl.textContent = '🕐';
+            clockEl.title = 'Muted, middle click the series again to clear';
+            stateContainer.appendChild(clockEl);
+
             if (series.state) {
                 const stateBadge = document.createElement('span');
                 stateBadge.className = 'state-badge';
@@ -1879,8 +1964,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 row.classList.toggle('expanded');
             });
 
+            // Middle click to mute. Links keep their usual open-in-a-new-tab
+            // behavior, everything else would start an autoscroll, so the
+            // default has to go
+            header.addEventListener('mousedown', (e) => {
+                if (e.button === 1 && !e.target.closest('a')) {
+                    e.preventDefault();
+                }
+            });
+
+            header.addEventListener('auxclick', (e) => {
+                if (e.button !== 1 || e.target.closest('a')) {
+                    return;
+                }
+                e.preventDefault();
+                toggleMute(series, row);
+            });
+
             row.appendChild(header);
             row.appendChild(patchesContainer);
+
+            applyMuteState(series, row);
 
             return row;
         }

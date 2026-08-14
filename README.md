@@ -105,6 +105,11 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
   - Delegate filter updates the URL (e.g., `?delegate=john`)
   - Bookmarkable/shareable filtered views
 - **Hide Inactive**: Toggle to hide archived or completed series
+- **Mute**: Middle click a series to dim it and mark it with a clock
+  - For series already acted on, while the backend catches up
+  - Purely visual, the series stays in the list, "Hide Inactive" is unaffected
+  - Middle click again to clear
+  - Saved in browser's localStorage, expires an hour after it was set
 
 ## Custom Scoring
 
