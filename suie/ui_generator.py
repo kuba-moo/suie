@@ -313,9 +313,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .series-title {
+            /* Wrap onto a second line, then cut off with an ellipsis */
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            overflow-wrap: anywhere;
         }
 
         .series-age {
@@ -1352,9 +1356,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             titleEl.className = 'series-title';
             titleEl.textContent = cleanTitle;
             titleEl.title = series.title;  // Use original title with tree for tooltip
-            titleEl.style.overflow = 'hidden';
-            titleEl.style.textOverflow = 'ellipsis';
-            titleEl.style.whiteSpace = 'nowrap';
             titleEl.style.flex = '1';
             titleEl.style.minWidth = '0';
             titleContainerEl.appendChild(titleEl);
