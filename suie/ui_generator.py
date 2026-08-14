@@ -225,7 +225,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-list-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px;
+            grid-template-columns: 120px 150px 1fr 70px 80px 120px 180px 200px;
             gap: 15px;
             align-items: center;
             background-color: var(--bg-secondary);
@@ -276,7 +276,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .series-header {
             padding: 12px 20px;
             display: grid;
-            grid-template-columns: 120px 150px 1fr 100px 80px 120px 180px 200px;
+            grid-template-columns: 120px 150px 1fr 70px 80px 120px 180px 200px;
             gap: 15px;
             align-items: center;
         }
@@ -775,7 +775,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         @media (max-width: 1000px) {
             .series-header {
-                grid-template-columns: 60px 120px 1fr 80px 70px 90px 100px 130px;
+                grid-template-columns: 60px 120px 1fr 70px 70px 90px 100px 130px;
                 gap: 10px;
                 font-size: 13px;
             }
