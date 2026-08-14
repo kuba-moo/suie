@@ -969,6 +969,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             initializeUI();
             loadMutedSeries();
             loadFiltersFromURL();
+            loadIncludeUnassigned();
             renderSeries();
             updateStats();
 
@@ -977,7 +978,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             document.getElementById('needs-ack-filter').addEventListener('change', renderSeries);
             document.getElementById('min-age-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
-            document.getElementById('include-unassigned').addEventListener('change', renderSeries);
+            document.getElementById('include-unassigned').addEventListener('change', onIncludeUnassignedChange);
             document.getElementById('tree-filter').addEventListener('change', onTreeChange);
             document.getElementById('fold-all').addEventListener('click', foldAllSeries);
             document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -1070,6 +1071,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         function onTreeChange() {
             updateURL();
+            renderSeries();
+        }
+
+        // Wanting to see the unassigned series is a mode people stay in
+        // rather than a per visit choice, so keep it across reloads
+        const UNASSIGNED_STORAGE_KEY = 'suie.unassigned';
+
+        function loadIncludeUnassigned() {
+            try {
+                document.getElementById('include-unassigned').checked =
+                    localStorage.getItem(UNASSIGNED_STORAGE_KEY) === 'true';
+            } catch (err) {
+                console.error('Failed to load the unassigned filter:', err);
+            }
+        }
+
+        function onIncludeUnassignedChange() {
+            const checked = document.getElementById('include-unassigned').checked;
+
+            try {
+                localStorage.setItem(UNASSIGNED_STORAGE_KEY, String(checked));
+            } catch (err) {
+                console.error('Failed to save the unassigned filter:', err);
+            }
             renderSeries();
         }
 

@@ -108,6 +108,7 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
   - The default can be changed with `ui.hide_inactive_default`
 - **Unassigned**: Toggle to show series nobody picked up yet, at the top of the
   list, no matter which delegate is selected
+  - Choice saved in browser's localStorage
 - **Mute**: Middle click a series to dim it and mark it with a clock
   - For series already acted on, while the backend catches up
   - Purely visual, the series stays in the list, "Inactive" is unaffected
