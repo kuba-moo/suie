@@ -199,8 +199,8 @@ class PatchworkClient:
         """Get comments for a cover letter"""
         return self._get_paginated(f'covers/{cover_id}/comments')
 
-    def get_events(self, project: str, since: Optional[str] = None,
-                   since_id: Optional[int] = None, category: Optional[str] = None,
+    def get_events(self, project: str, since_id: Optional[int] = None,
+                   category: Optional[str] = None,
                    single_page: bool = False, **kwargs) -> List[Dict]:
         """
         Get events for a project
@@ -208,9 +208,12 @@ class PatchworkClient:
         Uses event IDs for reliable pagination. Fetches events in descending order (newest first)
         and stops when reaching an event with ID <= since_id.
 
+        Note: do not pass a 'since' timestamp through kwargs. The date filter on the
+        events table is unindexed and the request times out (502) on large projects;
+        filter by since_id instead.
+
         Args:
             project: Project ID or linkname
-            since: ISO8601 timestamp for filtering (deprecated, use since_id)
             since_id: Event ID to start from (fetch only events with ID > since_id)
             category: Event category to filter by
             single_page: If True, only fetch one page and return (for initialization)

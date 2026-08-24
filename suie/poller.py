@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
 
 from .patchwork_client import PatchworkClient
 from .state import StateManager
@@ -141,12 +140,9 @@ class PatchworkPoller:
         except Exception as e:
             logger.warning("Failed to process cover letter %d: %s", cover_id, e)
 
-    def poll_events(self, since: Optional[str] = None) -> bool:
+    def poll_events(self) -> bool:
         """
         Poll for new events and update state
-
-        Args:
-            since: Unused (kept for compatibility)
 
         Returns:
             True if state was updated, False otherwise
