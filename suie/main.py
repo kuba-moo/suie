@@ -246,6 +246,14 @@ class SuieApp:
             scores_path=self.config["ui"].get("scores_path"),
         )
 
+        # Full event polls and confirmation sweeps run on their own schedules,
+        # both much slower than the patch-state-changed poll
+        polling_config = self.config.get("polling", {})
+        self.full_poll_interval = polling_config.get("full_interval", 300)
+        self.confirmation_timeout_hours = polling_config.get("confirmation_timeout_hours", 1)
+        self.last_full_poll = None
+        self.last_confirmation_sweep = None
+
         # Load MAINTAINERS file if configured
         self.maintainers = None
         self.maintainers_config = self.config.get("maintainers", {})
@@ -325,6 +333,12 @@ class SuieApp:
 
         self.poller.initialize_state(lookback_days=lookback_days)
 
+        # We just walked the lookback window, so start both schedules from here
+        # rather than firing a full poll on the first tick
+        now = datetime.now(timezone.utc)
+        self.last_full_poll = now
+        self.last_confirmation_sweep = now
+
         logger.info("State initialization complete")
         logger.info("Stats: %s", self.state.get_stats())
 
@@ -334,14 +348,49 @@ class SuieApp:
         # Save request log
         self.client.save_request_log()
 
+    def _check_full_poll(self) -> bool:
+        """
+        Run the full event poll if it is due
+
+        Returns:
+            True if state was updated, False otherwise
+        """
+        now = datetime.now(timezone.utc)
+
+        if self.last_full_poll is not None:
+            elapsed = (now - self.last_full_poll).total_seconds()
+            if elapsed < self.full_poll_interval:
+                return False
+
+        logger.info("Polling for events of every category...")
+        self.last_full_poll = now
+        return self.poller.poll_events()
+
+    def _check_confirmation_queue(self):
+        """Sweep the confirmation queue once an hour"""
+        now = datetime.now(timezone.utc)
+
+        if self.last_confirmation_sweep is not None:
+            elapsed = (now - self.last_confirmation_sweep).total_seconds()
+            if elapsed < 3600:
+                return
+
+        self.last_confirmation_sweep = now
+        self.poller.sweep_confirmations(self.confirmation_timeout_hours)
+
     def poll_and_update(self):
         """Poll for events and regenerate UI if state changed"""
-        logger.info("Polling for events...")
+        logger.info("Polling for state changes...")
 
         # Check and reload MAINTAINERS if needed (once per day)
         self._check_and_reload_maintainers()
 
-        state_changed = self.poller.poll_events()
+        state_changed = self.poller.poll_state_events()
+
+        if self._check_full_poll():
+            state_changed = True
+
+        self._check_confirmation_queue()
 
         # Check if new stats file is available
         stats_reloaded = self.dev_db.check_and_reload_stats()
@@ -1937,9 +1986,11 @@ class SuieApp:
         Run in continuous mode, polling for events periodically
 
         Args:
-            poll_interval: Seconds between polls
+            poll_interval: Seconds between state change polls. The full event
+                poll runs on its own, much longer, interval.
         """
-        logger.info("Running in continuous mode (poll interval: %ds)", poll_interval)
+        logger.info("Running in continuous mode (state change poll: %ds, full poll: %ds)",
+                    poll_interval, self.full_poll_interval)
 
         while True:
             try:
@@ -1979,7 +2030,13 @@ def main():
         "--poll-interval",
         type=int,
         default=None,
-        help="Polling interval in seconds (overrides config file)",
+        help="State change polling interval in seconds (overrides config file)",
+    )
+    parser.add_argument(
+        "--full-poll-interval",
+        type=int,
+        default=None,
+        help="Full event polling interval in seconds (overrides config file)",
     )
 
     args = parser.parse_args()
@@ -1998,6 +2055,9 @@ def main():
     poll_interval = args.poll_interval
     if poll_interval is None:
         poll_interval = app.config.get("polling", {}).get("interval", 300)
+
+    if args.full_poll_interval is not None:
+        app.full_poll_interval = args.full_poll_interval
 
     # Run continuous polling
     app.run_continuous(poll_interval=poll_interval)

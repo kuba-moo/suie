@@ -27,8 +27,13 @@ class StateManager:
 
         # Tracking
         self.last_event_id: Optional[int] = None
+        self.last_state_event_id: Optional[int] = None
         self.last_update: Optional[datetime] = None
         self.active_series_ids: Set[int] = set()
+
+        # Events the patch-state-changed poll has seen and the full event poll
+        # has not confirmed yet: event_id -> time we first saw it
+        self.pending_confirmations: Dict[int, datetime] = {}
 
     def add_series(self, series_data: Dict):
         """Add or update a series"""
@@ -208,6 +213,8 @@ class StateManager:
             'cover_letters_count': len(self.cover_letters),
             'cover_comments_count': sum(len(comments) for comments in self.cover_comments.values()),
             'last_event_id': self.last_event_id,
+            'last_state_event_id': self.last_state_event_id,
+            'pending_confirmations': len(self.pending_confirmations),
             'last_update': self.last_update.isoformat() if self.last_update else None
         }
 
@@ -241,3 +248,57 @@ class StateManager:
                 self.last_update = datetime.utcnow()
         else:
             self.last_update = datetime.utcnow()
+
+    def update_last_state_event(self, event_id: int):
+        """
+        Update the last processed patch-state-changed event ID
+
+        The two polls walk the same ID sequence through different filters, so
+        they keep separate watermarks. Sharing one would let the faster poll
+        advance the slower poll past events it never saw.
+
+        Args:
+            event_id: Event ID
+        """
+        self.last_state_event_id = event_id
+
+    def add_pending_confirmation(self, event_id: int):
+        """
+        Record a state change event we expect the full event poll to report
+
+        Args:
+            event_id: Event ID
+        """
+        self.pending_confirmations.setdefault(event_id, datetime.utcnow())
+
+    def confirm_event(self, event_id: int) -> bool:
+        """
+        Mark an event as seen by the full event poll
+
+        Args:
+            event_id: Event ID
+
+        Returns:
+            True if the event was awaiting confirmation, False otherwise
+        """
+        return self.pending_confirmations.pop(event_id, None) is not None
+
+    def expire_pending_confirmations(self, max_age_hours: float = 1) -> List[int]:
+        """
+        Drop confirmations we have been waiting on for too long
+
+        Args:
+            max_age_hours: How long to wait before giving up on an event
+
+        Returns:
+            The event IDs that were dropped, lowest first
+        """
+        cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
+        expired = sorted(event_id
+                         for event_id, seen in self.pending_confirmations.items()
+                         if seen < cutoff)
+
+        for event_id in expired:
+            del self.pending_confirmations[event_id]
+
+        return expired

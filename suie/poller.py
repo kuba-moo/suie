@@ -2,12 +2,15 @@
 
 import logging
 from datetime import datetime, timedelta
+from typing import List
 
 from .patchwork_client import PatchworkClient
 from .state import StateManager
 
 
 logger = logging.getLogger(__name__)
+
+PATCH_STATE_CHANGED = 'patch-state-changed'
 
 
 class PatchworkPoller:
@@ -41,6 +44,9 @@ class PatchworkPoller:
         logger.info("Fetching latest event ID as baseline...")
         latest_events = self.client.get_events(self.project, per_page=1, single_page=True)
 
+        # Event IDs are global, so the newest event of any category is also a
+        # valid baseline for the patch-state-changed poll. Saves a second,
+        # much slower, request here.
         if latest_events:
             baseline_event_id = latest_events[0].get('id', 0)
             logger.info("Baseline event ID: %d (will only process events after this)", baseline_event_id)
@@ -48,6 +54,8 @@ class PatchworkPoller:
         else:
             logger.warning("No events found, starting from event ID 0")
             self.state.last_event_id = 0
+
+        self.state.last_state_event_id = self.state.last_event_id
 
         # Calculate the cutoff date for series
         cutoff = datetime.utcnow() - timedelta(days=lookback_days)
@@ -140,9 +148,61 @@ class PatchworkPoller:
         except Exception as e:
             logger.warning("Failed to process cover letter %d: %s", cover_id, e)
 
+    def poll_state_events(self) -> bool:
+        """
+        Poll for new patch-state-changed events and update state
+
+        Filtering by category cuts the request time by about a third, which is
+        what makes this one cheap enough to run often. Every event it picks up
+        goes on the confirmation queue, so that the full poll can later tell us
+        whether the two streams agree.
+
+        Returns:
+            True if state was updated, False otherwise
+        """
+        since_id = self.state.last_state_event_id
+        logger.debug("Fetching %s events since ID %s", PATCH_STATE_CHANGED, since_id)
+
+        try:
+            events = self.client.get_events(self.project, since_id=since_id,
+                                            category=PATCH_STATE_CHANGED)
+        except Exception as e:
+            logger.error("Failed to poll state change events: %s", e)
+            return False
+
+        if not events:
+            logger.debug("No new state change events")
+            return False
+
+        logger.info("Processing %d state change events", len(events))
+        state_changed = False
+
+        # Process events from oldest to newest (the API returns newest first)
+        for event in reversed(events):
+            event_id = event.get('id')
+            if event_id is None:
+                logger.warning("Event without ID found, skipping: %s", event)
+                continue
+
+            if self._process_event(event):
+                state_changed = True
+
+            # Only wait on events the full poll has yet to reach. Anything at
+            # or below its watermark it has already been past, and will never
+            # report again.
+            if self.state.last_event_id is None or event_id > self.state.last_event_id:
+                self.state.add_pending_confirmation(event_id)
+
+            self.state.update_last_state_event(event_id)
+
+        return state_changed
+
     def poll_events(self) -> bool:
         """
-        Poll for new events and update state
+        Poll for new events of every category and update state
+
+        Doubles as the check on poll_state_events(): any state change it sees
+        clears that event off the confirmation queue.
 
         Returns:
             True if state was updated, False otherwise
@@ -153,28 +213,77 @@ class PatchworkPoller:
 
         try:
             events = self.client.get_events(self.project, since_id=since_id)
-
-            if not events:
-                logger.debug("No new events")
-                return False
-
-            logger.info("Processing %d events", len(events))
-            state_changed = False
-
-            # Process events from oldest to newest (reverse the list since API returns newest first)
-            for event in reversed(events):
-                if self._process_event(event):
-                    state_changed = True
-
-            return state_changed
-
         except Exception as e:
             logger.error("Failed to poll events: %s", e)
             return False
 
+        if not events:
+            logger.debug("No new events")
+            return False
+
+        logger.info("Processing %d events", len(events))
+        state_changed = False
+        confirmed = 0
+
+        # Process events from oldest to newest (reverse the list since API returns newest first)
+        for event in reversed(events):
+            event_id = event.get('id')
+            if event_id is None:
+                logger.warning("Event without ID found, skipping: %s", event)
+                continue
+
+            if self._process_event(event):
+                state_changed = True
+
+            if event.get('category') == PATCH_STATE_CHANGED:
+                if self.state.confirm_event(event_id):
+                    confirmed += 1
+
+            # Always update last event ID and date, even if we did not process
+            # it, so that we advance past already seen events
+            self.state.update_last_event(event_id, event.get('date'))
+
+        if confirmed:
+            logger.debug("Confirmed %d state change event(s), %d still pending",
+                         confirmed, len(self.state.pending_confirmations))
+
+        return state_changed
+
+    def sweep_confirmations(self, max_age_hours: float = 1) -> List[int]:
+        """
+        Give up on state changes the full event poll never reported
+
+        An event that only ever showed up in one of the two streams means the
+        mirror is missing something. Complaining is a placeholder, eventually
+        this is where we kick off a rescan.
+
+        Args:
+            max_age_hours: How long to wait before giving up on an event
+
+        Returns:
+            The event IDs that were dropped
+        """
+        expired = self.state.expire_pending_confirmations(max_age_hours)
+
+        if expired:
+            logger.error(
+                "%d %s event(s) never appeared in the full event stream within "
+                "%gh, dropping them, the mirror may be out of sync: %s",
+                len(expired), PATCH_STATE_CHANGED, max_age_hours,
+                ', '.join(str(event_id) for event_id in expired)
+            )
+        else:
+            logger.debug("Confirmation queue clean, %d event(s) pending",
+                         len(self.state.pending_confirmations))
+
+        return expired
+
     def _process_event(self, event: dict) -> bool:
         """
         Process a single event
+
+        Advancing the watermark is left to the caller, the two polls track
+        their own.
 
         Args:
             event: Event data
@@ -185,12 +294,6 @@ class PatchworkPoller:
         event_id = event.get('id')
         category = event.get('category')
         payload = event.get('payload', {})
-
-        # Skip if we've already processed this event
-        if self.state.last_event_id and event_id <= self.state.last_event_id:
-            logger.debug("Skipping already processed event %d (last: %d)",
-                        event_id, self.state.last_event_id)
-            return False
 
         logger.debug("Processing event %d: %s", event_id, category)
 
@@ -266,15 +369,7 @@ class PatchworkPoller:
                     self.state.set_cover_comments(cover_id, comments)
                     state_changed = True
 
-            # Always update last event ID and date, even if we didn't process it
-            # This ensures we advance past already-seen events
-            event_date = event.get('date')
-            self.state.update_last_event(event_id, event_date)
-
         except Exception as e:
             logger.error("Failed to process event %d: %s", event_id, e)
-            # Still update last event ID to avoid getting stuck
-            event_date = event.get('date')
-            self.state.update_last_event(event_id, event_date)
 
         return state_changed

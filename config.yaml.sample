@@ -33,6 +33,19 @@ ui:
     # Example:
     # - '<script defer data-domain="example.com" src="https://domain.com/js/script.js"></script>'
 
+# Polling configuration
+polling:
+  # patch-state-changed poll, in seconds (--poll-interval CLI arg)
+  interval: 20
+
+  # Full event poll, in seconds (--full-poll-interval CLI arg). Roughly three
+  # times slower to serve than the filtered one, so run it far less often.
+  full_interval: 300
+
+  # How long a state change may go unconfirmed by the full event poll before
+  # we complain about the two streams disagreeing
+  confirmation_timeout_hours: 1
+
 # Sorting configuration
 sorting:
   module_path: "scoring/example_scorer.py"
