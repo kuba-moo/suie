@@ -63,7 +63,7 @@ def score_patch(context, patch_score):
     for check_name, outcome in context.check_outcomes.items():
         if outcome == 'missing':
             missing_checks.append(check_name)
-            score += 24
+            score += 1
         elif outcome == 'fail':
             failed_checks.append(check_name)
             score += 12
@@ -72,7 +72,7 @@ def score_patch(context, patch_score):
             score += 3
 
     if missing_checks:
-        patch_score.add_score_line(f"Missing checks: {', '.join(missing_checks)}", 24 * len(missing_checks))
+        patch_score.add_score_line(f"Missing checks: {', '.join(missing_checks)}", len(missing_checks))
     if failed_checks:
         patch_score.add_score_line(f"Failed checks: {', '.join(failed_checks)}", 12 * len(failed_checks))
     if warning_checks:
