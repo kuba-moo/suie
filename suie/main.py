@@ -1436,7 +1436,7 @@ class SuieApp:
 
         # Aggregate check status across all patches
         # For each check context, track the worst state across all patches
-        # Priority: missing > fail > warning > success
+        # Priority: missing > fail > warning > pending > success
 
         # First pass: collect all check contexts and build per-patch check maps
         all_check_contexts = set(expected_checks)
@@ -1476,11 +1476,14 @@ class SuieApp:
                 check = checks_dict[context]
                 state = check.get("state", "unknown")
 
-                # Update to worst state (priority: missing > fail > warning > success)
+                # Update to worst state (priority: missing > fail > warning > pending > success)
                 if state == "fail":
                     worst_state = "fail"
                 elif state == "warning" and worst_state not in ["fail"]:
                     worst_state = "warning"
+                elif state == "pending" and worst_state == "success":
+                    # Still running - not a pass, but not a problem either
+                    worst_state = "pending"
                 # success doesn't change worst_state unless it's still 'success'
 
             check_states[context] = worst_state
@@ -1489,6 +1492,7 @@ class SuieApp:
         series_failed_checks = []
         series_warning_checks = []
         series_missing_checks = []
+        series_pending_checks = []
         series_passing_checks = []
 
         for context, state in check_states.items():
@@ -1498,6 +1502,8 @@ class SuieApp:
                 series_failed_checks.append(context)
             elif state == "warning":
                 series_warning_checks.append(context)
+            elif state == "pending":
+                series_pending_checks.append(context)
             elif state == "success":
                 series_passing_checks.append(context)
 
@@ -1977,6 +1983,7 @@ class SuieApp:
                 "failed": sorted(series_failed_checks),
                 "warning": sorted(series_warning_checks),
                 "missing": sorted(series_missing_checks),
+                "pending": sorted(series_pending_checks),
                 "passing": len(series_passing_checks),
             },
         }

@@ -88,9 +88,11 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
   - Check status aggregated across all patches (per check type):
     - **Missing**: If any patch is missing the check
     - **Failed/Warning**: If any patch failed/warned (and none are missing)
+    - **Pending**: If the check is still running on some patch and nothing worse
+      happened; shown in blue like missing, but not counted against the series
     - **Passing**: Only if ALL patches passed the check
   - Automatically deduplicates retried checks (keeps only the latest result)
-  - Failed/missing checks shown individually for quick identification
+  - Failed/missing/pending checks shown individually for quick identification
   - Passing checks summarized as "✓ N" to save space
 - **Patch Details**: Expand any series to see individual patches with:
   - Patch name with failed checks displayed as rows underneath:

@@ -517,12 +517,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #ff9f40;
         }
 
-        .check-missing {
+        .check-missing,
+        .check-pending {
             background-color: #f1f8ff;
             color: #0366d6;
         }
 
-        [data-theme="dark"] .check-missing {
+        [data-theme="dark"] .check-missing,
+        [data-theme="dark"] .check-pending {
             background-color: #1a2d3d;
             color: #58a6ff;
         }
@@ -1339,7 +1341,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         function calculateCheckScore(series) {
-            // Fails = +5, warnings = +1, missing checks = +10
+            // Fails = +5, warnings = +1, missing checks = +10, pending = 0
             let score = 0;
             score += (series.checks_summary.failed || []).length * 5;
             score += (series.checks_summary.warning || []).length * 1;
@@ -1859,6 +1861,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 badge.className = 'check-badge check-missing';
                 badge.textContent = check;
                 badge.title = `Check missing: ${check}`;
+                checksEl.appendChild(badge);
+            });
+
+            (series.checks_summary.pending || []).forEach(check => {
+                const badge = document.createElement('span');
+                badge.className = 'check-badge check-pending';
+                badge.textContent = check;
+                badge.title = `Check pending: ${check}`;
                 checksEl.appendChild(badge);
             });
 
