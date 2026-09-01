@@ -24,6 +24,13 @@ from .ui_generator import DEFAULT_SASHIKO_URL, UIGenerator
 
 logger = logging.getLogger(__name__)
 
+# Subject prefix tokens which are not tree names. PATCH, RFC, GIT and PULL
+# are boilerplate; BUG, SECURITY and RESEND say something about the posting
+# rather than about where it should land.
+NOT_TREE_NAMES = frozenset({
+    'PATCH', 'RFC', 'GIT', 'PULL', 'BUG', 'SECURITY', 'RESEND',
+})
+
 
 class Person:
     """Person representation for maintainer matching"""
@@ -1359,6 +1366,35 @@ class SuieApp:
         return 'reviewer' if is_reviewer else None
 
     @staticmethod
+    def _is_tree_name(part: str) -> bool:
+        """
+        Whether a subject prefix token names a tree
+
+        Args:
+            part: One token out of the bracketed prefix
+
+        Returns:
+            True if the token could be a tree
+        """
+        if not part:
+            return False
+        # Version numbers: v1, v2, V3
+        if re.match(r'^v\d+$', part, re.IGNORECASE):
+            return False
+        if part.upper() in NOT_TREE_NAMES:
+            return False
+        # Stable backports name the kernel they are against, not a tree we
+        # take patches for. The release is spelled out, linux-6.12.y and
+        # such, so this has to go by prefix rather than by name.
+        if re.match(r'^linux-\d', part, re.IGNORECASE):
+            return False
+        # Tree names start and end with a letter, which is also what drops
+        # the patch numbers once the N/M has been split apart
+        if part[0].isdigit() or part[-1].isdigit():
+            return False
+        return True
+
+    @staticmethod
     def _extract_tree_designation(title: str) -> Optional[str]:
         """
         Extract tree designation from a title.
@@ -1368,6 +1404,8 @@ class SuieApp:
         - [PATCH net-next] Title
         - [net-next,v2] Title -> extracts "net-next"
         - [v2,net-next,1/2] Title -> extracts "net-next"
+        - [RESEND,net-next,v2,1/4] Title -> extracts "net-next"
+        - [BUG/RFC,1/2] Title -> nothing here names a tree
 
         Args:
             title: Patch or series title
@@ -1383,55 +1421,17 @@ class SuieApp:
         if not tree_match:
             return None
 
-        bracket_content = tree_match.group(1)
+        # The slash earns its place in the separator twice over: it splits
+        # the patch number in 1/4, and it joins keywords in BUG/RFC, so
+        # leaving it in would let the latter through as a tree name
+        parts = re.split(r'[,\s/]+', tree_match.group(1))
 
-        # Check if bracket contains comma or space (composite tag)
-        if ',' in bracket_content or ' ' in bracket_content:
-            # Split by comma or space
-            parts = re.split(r'[,\s]+', bracket_content)
-            parts = [p.strip() for p in parts if p.strip()]
-
-            # Filter out parts that look like:
-            # - Version numbers: v1, v2, V3, etc.
-            # - Patch numbers: 1/2, 3/5, etc.
-            # - PATCH keyword
-            # - RFC keyword
-            # - GIT keyword
-            # - PULL keyword
-            filtered_parts = []
-            for part in parts:
-                part = part.strip()
-                if not part:
-                    continue
-                # Check if it's a version number (v\d+ or V\d+)
-                if re.match(r'^v\d+$', part, re.IGNORECASE):
-                    continue
-                # Check if it's a patch number (e.g., 1/2, 3/5)
-                if re.match(r'^\d+\/\d+$', part):
-                    continue
-                # Check if it's "PATCH", "RFC", "GIT", or "PULL" keyword
-                if part.upper() in ('PATCH', 'RFC', 'GIT', 'PULL'):
-                    continue
-                # Tree names must start and end with a letter
-                if part[0].isdigit() or part[-1].isdigit():
-                    continue
-                filtered_parts.append(part)
-
-            # If we have any parts left, use the first one as tree designation
-            if filtered_parts:
-                return filtered_parts[0]
-        else:
-            # Single part, use as-is (unless it's a version, patch number, PATCH, RFC, GIT, or PULL keyword)
-            if re.match(r'^v\d+$', bracket_content, re.IGNORECASE):
-                return None
-            if re.match(r'^\d+\/\d+$', bracket_content):
-                return None
-            if bracket_content.upper() in ('PATCH', 'RFC', 'GIT', 'PULL'):
-                return None
-            # Tree names must start and end with a letter
-            if bracket_content[0].isdigit() or bracket_content[-1].isdigit():
-                return None
-            return bracket_content
+        # Posters put the tree wherever they like in the prefix, so take the
+        # first token which could be one rather than a fixed position
+        for part in parts:
+            part = part.strip()
+            if SuieApp._is_tree_name(part):
+                return part
 
         return None
 
