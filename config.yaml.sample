@@ -18,6 +18,10 @@ ui:
   # Machine readable scores, defaults to scores.json next to the HTML
   scores_path: "output/scores.json"
 
+  # Outstanding patch counts per tree and company, defaults to stats.html
+  # next to the HTML. Nothing links to it, open it directly.
+  stats_path: "output/stats.html"
+
   # Base URL for Sashiko links, message ID gets appended (empty to hide them)
   sashiko_url: "https://sashiko.dev/#/patchset/"
 

@@ -4,6 +4,7 @@ import argparse
 import fnmatch
 import logging
 import math
+import os
 import re
 import sys
 import time
@@ -17,6 +18,7 @@ from .patchwork_client import PatchworkClient
 from .poller import PatchworkPoller
 from .scoring import DeveloperDatabase, ScoringEngine, SeriesScore
 from .state import StateManager
+from .stats_generator import StatsGenerator
 from .ui_generator import DEFAULT_SASHIKO_URL, UIGenerator
 
 
@@ -246,6 +248,13 @@ class SuieApp:
             scores_path=self.config["ui"].get("scores_path"),
         )
 
+        self.stats_generator = StatsGenerator(
+            output_path=self.config["ui"].get("stats_path") or os.path.join(
+                os.path.dirname(self.config["ui"]["output_path"]), "stats.html"),
+            tracking_scripts=self.config["ui"].get("tracking_scripts", []),
+            lookback_days=self.config["state"].get("lookback_days", 7),
+        )
+
         # Full event polls and confirmation sweeps run on their own schedules,
         # both much slower than the patch-state-changed poll
         polling_config = self.config.get("polling", {})
@@ -439,6 +448,7 @@ class SuieApp:
         # Generate UI
         self.ui_generator.generate(scored_series, sorted(delegates))
         self.ui_generator.generate_scores(scored_series)
+        self.stats_generator.generate(scored_series)
 
         logger.info("UI regenerated with %d series", len(scored_series))
 

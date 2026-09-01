@@ -7,6 +7,7 @@ Suie is a Python application that mirrors state from a Patchwork instance and ra
 - **State Mirroring**: Tracks patches, series, checks, and comments from Patchwork via the REST API
 - **Event Polling**: Continuously monitors for changes using the Patchwork events API
 - **Interactive Web UI**: Static HTML page with JavaScript for browsing and filtering patches
+- **Stats Page**: Separate page counting outstanding patches per tree and company
 - **Configurable Scoring**: Uses a Python DSL for defining patch ranking rules
 - **Developer Database**: Maps developers to companies and tracks reviewer scores
 
@@ -211,6 +212,40 @@ weekday hours only, so the timestamp skips over weekends. Series which are
 already due carry a timestamp in the past. Series with no usable score, which
 means the scoring function failed, are left out.
 
+## Stats Page
+
+Alongside the queue, the UI generator writes `output/stats.html` (configurable
+via `ui.stats_path`), which breaks the backlog down by tree and by the author's
+company. It answers "who is this tree waiting on", which the queue itself, being
+a flat list, does not.
+
+Nothing links to it. The queue header is busy enough, so the page is opened
+directly when the shape of the backlog is the question rather than what to
+review next.
+
+One horizontal bar per submitter, drawn against a shared scale and sorted by
+patch count. Companies get a solid bar, submitters with no `corpmap` entry get
+their name in italics and a hollow bar, so a person never reads as a company.
+
+Controls:
+
+- **Tree**: Which tree to count, or "All trees". Each option carries its own
+  count, so the dropdown doubles as a summary
+- **Include no tree**: Series whose subject carries no tree tag are left out by
+  default. Checking this counts them against whichever tree is selected
+- **Split unknown**: On by default, every author with no company mapping gets
+  their own bar. Off, they collapse into a single "Unknown"
+  - A single "Unknown" bar hides the fact that one person can out-submit a
+    whole company
+- **Inactive**: Off by default, only series with a patch still in `new`,
+  `under-review` or `needs-ack` count
+- All four are saved in browser's localStorage, and the tree is also readable
+  from `?tree=` so a view can be linked
+
+The counts reach back `state.lookback_days`, which the page shows next to the
+generated time. This is a recent backlog, not an all time one. A patch counts
+while its series is outstanding, matching the `Patches:` figure on the queue.
+
 ## Request Logging
 
 All Patchwork API requests are logged to `output/patchwork_requests.json` with:
@@ -244,6 +279,7 @@ suie/
     ├── state.py             # State manager
     ├── poller.py            # Event poller
     ├── scoring.py           # Scoring engine
+    ├── stats_generator.py   # Per tree and company stats page generator
     └── ui_generator.py      # Web UI generator
 ```
 
