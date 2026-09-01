@@ -132,6 +132,9 @@ Your scoring function receives a `ScoringContext` object with:
 - `cover_comments`: Comments on the cover letter
 - `dev_db`: Developer database for looking up scores and companies
 
+Mail from `netdev-bot@kernel.org` (including `+`-suffixed addresses) is dropped
+as it arrives and never shows up in either comment list — it is not discussion.
+
 **Check Information (Structured):**
 
 - `check_outcomes`: Dictionary mapping expected check names to outcomes (`pass`, `warning`, `fail`, `missing`)

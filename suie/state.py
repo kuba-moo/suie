@@ -1,12 +1,30 @@
 """State manager for tracking series, patches, checks, and comments"""
 
 import logging
+import re
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 
 logger = logging.getLogger(__name__)
+
+# Senders whose mail is never discussion. Their comments are dropped as they
+# arrive, so nothing downstream (review tags, commenter badges, time since the
+# last comment) ever sees them.
+IGNORED_COMMENTERS = re.compile(r'netdev-bot(\+[^@]*)?@kernel\.org', re.IGNORECASE)
+
+
+def _drop_ignored_comments(comments: List[Dict]) -> List[Dict]:
+    """Filter out comments posted by senders we do not count as discussion"""
+    kept = []
+    for comment in comments:
+        email = (comment.get('submitter') or {}).get('email') or ''
+        if IGNORED_COMMENTERS.fullmatch(email.strip().strip('<>')):
+            logger.debug("Ignoring comment from %s", email)
+            continue
+        kept.append(comment)
+    return kept
 
 
 class StateManager:
@@ -68,11 +86,14 @@ class StateManager:
 
     def add_patch_comment(self, patch_id: int, comment_data: Dict):
         """Add a comment for a patch"""
+        if not _drop_ignored_comments([comment_data]):
+            return
         self.patch_comments[patch_id].append(comment_data)
         logger.debug("Added comment for patch %d", patch_id)
 
     def set_patch_comments(self, patch_id: int, comments: List[Dict]):
         """Set all comments for a patch (replacing existing)"""
+        comments = _drop_ignored_comments(comments)
         self.patch_comments[patch_id] = comments
         logger.debug("Set %d comments for patch %d", len(comments), patch_id)
 
@@ -84,11 +105,14 @@ class StateManager:
 
     def add_cover_comment(self, cover_id: int, comment_data: Dict):
         """Add a comment for a cover letter"""
+        if not _drop_ignored_comments([comment_data]):
+            return
         self.cover_comments[cover_id].append(comment_data)
         logger.debug("Added comment for cover letter %d", cover_id)
 
     def set_cover_comments(self, cover_id: int, comments: List[Dict]):
         """Set all comments for a cover letter (replacing existing)"""
+        comments = _drop_ignored_comments(comments)
         self.cover_comments[cover_id] = comments
         logger.debug("Set %d comments for cover letter %d", len(comments), cover_id)
 
