@@ -126,23 +126,15 @@ class UIGenerator:
         """Render the HTML template"""
         template = Template(HTML_TEMPLATE)
         data['tracking_scripts'] = self.tracking_scripts
+        data['theme_css'] = THEME_CSS
         return template.render(**data)
 
 
-# HTML template with embedded JavaScript
-HTML_TEMPLATE = """<!DOCTYPE html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Suie - Patch Review Queue</title>
-    <link rel="icon" type="image/png" href="suie.png">
-    {% for script in tracking_scripts %}
-    {{ script | safe }}
-    {% endfor %}
-    <style>
-        :root {
+# Color palette, shared by the review queue and the stats page. The media
+# query is not redundant with the attribute selector: it covers the first
+# visit, before anyone has touched the toggle and stamped a data-theme onto
+# the document.
+THEME_CSS = """        :root {
             /* Light mode colors */
             --bg-primary: #ffffff;
             --bg-secondary: #f6f8fa;
@@ -180,7 +172,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 --border-input: #30363d;
                 --shadow: rgba(0,0,0,0.3);
             }
-        }
+        }"""
+
+
+# HTML template with embedded JavaScript
+HTML_TEMPLATE = """<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suie - Patch Review Queue</title>
+    <link rel="icon" type="image/png" href="suie.png">
+    {% for script in tracking_scripts %}
+    {{ script | safe }}
+    {% endfor %}
+    <style>
+{{ theme_css | safe }}
 
         * {
             box-sizing: border-box;
