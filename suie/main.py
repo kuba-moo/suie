@@ -31,6 +31,10 @@ NOT_TREE_NAMES = frozenset({
     'PATCH', 'RFC', 'GIT', 'PULL', 'BUG', 'SECURITY', 'RESEND',
 })
 
+# A version, optionally run together with the keyword it follows, as posters
+# write PATCHv2 as often as they write PATCH v2
+VERSION_RE = r'^(?:%s)?v\d+$' % '|'.join(sorted(NOT_TREE_NAMES))
+
 
 class Person:
     """Person representation for maintainer matching"""
@@ -1378,8 +1382,9 @@ class SuieApp:
         """
         if not part:
             return False
-        # Version numbers: v1, v2, V3
-        if re.match(r'^v\d+$', part, re.IGNORECASE):
+        # Version numbers, on their own or run together with the keyword
+        # they follow: v2, PATCHv2, RFCv3
+        if re.match(VERSION_RE, part, re.IGNORECASE):
             return False
         if part.upper() in NOT_TREE_NAMES:
             return False
@@ -1388,9 +1393,15 @@ class SuieApp:
         # such, so this has to go by prefix rather than by name.
         if re.match(r'^linux-\d', part, re.IGNORECASE):
             return False
-        # Tree names start and end with a letter, which is also what drops
-        # the patch numbers once the N/M has been split apart
-        if part[0].isdigit() or part[-1].isdigit():
+        # A leading digit means a number rather than a name: the patch
+        # numbers once N/M has been split apart, and the bare stable
+        # releases, 6.12 and 6.12.y
+        if part[0].isdigit():
+            return False
+        # A release hung off the end names when the work is going in, not
+        # where, as in for-6.18. The separator is what keeps this off
+        # iproute2, whose digit is part of the name.
+        if re.search(r'[-.]\d[\d.]*$', part):
             return False
         return True
 
