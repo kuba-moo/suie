@@ -11,6 +11,15 @@ from typing import Dict, List, Optional, Callable, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Who a score is for. The queue is read by a person picking what to review
+# next, the JSON export gates the release of CI results, and the two care
+# about different things: a live discussion is a reason for a human to hold
+# off, but it says nothing about the quality of the submission. The scoring
+# function runs once per audience, so it can charge a delay to one and not
+# the other, and both totals come out of a single set of parsed comments.
+AUDIENCE_HUMAN = "human"
+AUDIENCE_MACHINE = "machine"
+
 
 @dataclass
 class PatchScore:
@@ -18,6 +27,7 @@ class PatchScore:
     patch_id: int
     score: float
     score_lines: List[tuple] = field(default_factory=list)  # [(emoji|None, comment, adjustment), ...]
+    machine_score: float = 0.0  # Same patch scored for AUDIENCE_MACHINE
 
     def add_score_line(self, comment: str, adjustment: int, emoji: str = None):
         """Add a score line with an optional emoji, comment, and score adjustment"""
@@ -31,6 +41,7 @@ class SeriesScore:
     score: float
     patch_scores: List[PatchScore] = field(default_factory=list)
     score_lines: List[tuple] = field(default_factory=list)  # [(emoji|None, comment, adjustment), ...]
+    machine_score: float = 0.0  # Same series scored for AUDIENCE_MACHINE
 
 
 class DeveloperDatabase:
@@ -383,7 +394,8 @@ class ScoringContext:
                  expected_checks: Optional[List[str]] = None,
                  series_age_weekday_hours: float = 0,
                  series_age_weekend_hours: float = 0,
-                 time_since_last_comment_hours: Optional[float] = None):
+                 time_since_last_comment_hours: Optional[float] = None,
+                 audience: str = AUDIENCE_HUMAN):
         """
         Initialize the scoring context
 
@@ -400,7 +412,11 @@ class ScoringContext:
             series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
             series_age_weekend_hours: Age of series in weekend hours
             time_since_last_comment_hours: Hours since most recent comment (None if no comments)
+            audience: Who this pass is scoring for, AUDIENCE_HUMAN or
+                AUDIENCE_MACHINE. The engine reuses one context for both
+                passes and flips this between them.
         """
+        self.audience = audience
         self.patch = patch
         self.series = series
         self.all_patches = all_patches
@@ -741,8 +757,31 @@ class ScoringEngine:
                                series_age_weekday_hours, series_age_weekend_hours,
                                time_since_last_comment_hours)
 
+        # Two passes over one context. Scoring is arithmetic over data which
+        # is already in hand, the cost is in parsing the comments and checks,
+        # and that happened once, in the constructor.
+        patch_score = self._score_for(context, AUDIENCE_HUMAN)
+        # Only the total survives the machine pass, the score lines describe
+        # the human score and are what the queue draws
+        patch_score.machine_score = self._score_for(context, AUDIENCE_MACHINE).score
+
+        return patch_score
+
+    def _score_for(self, context: ScoringContext, audience: str) -> PatchScore:
+        """
+        Run the scoring function over a context for one audience
+
+        Args:
+            context: Scoring context, its audience is set before the call
+            audience: AUDIENCE_HUMAN or AUDIENCE_MACHINE
+
+        Returns:
+            PatchScore object
+        """
+        context.audience = audience
+
         # Create a score object that the scoring function can populate
-        patch_score = PatchScore(patch_id=patch['id'], score=0.0)
+        patch_score = PatchScore(patch_id=context.patch['id'], score=0.0)
 
         try:
             # Call the scoring function
@@ -753,7 +792,8 @@ class ScoringEngine:
                 patch_score.score = float(score_value)
 
         except Exception as e:
-            logger.error("Error scoring patch %d: %s", patch['id'], e)
+            logger.error("Error scoring patch %d for %s: %s",
+                         context.patch['id'], audience, e)
             patch_score.score = float('inf')  # Push to bottom
             patch_score.add_score_line(f"Scoring error: {e}", 0)
 
@@ -800,8 +840,11 @@ class ScoringEngine:
         # Series score is the maximum (worst) patch score
         if series_score.patch_scores:
             series_score.score = max(ps.score for ps in series_score.patch_scores)
+            series_score.machine_score = max(ps.machine_score
+                                             for ps in series_score.patch_scores)
         else:
             series_score.score = float('inf')  # No patches, push to bottom
+            series_score.machine_score = float('inf')
 
         # Aggregate score lines from all patch scores (deduplicate by emoji)
         seen_emojis = set()

@@ -84,9 +84,15 @@ class UIGenerator:
         """
         Write the machine readable score file
 
-        The score is the UTC time at which the series reaches a zero score,
-        which is what the UI counts down to in the Score column. Series
-        which are already due carry a timestamp in the past.
+        The score is the UTC time at which the series reaches a zero score.
+        Series which are already due carry a timestamp in the past.
+
+        This is the machine score, not the one the UI counts down to in the
+        Score column. The consumer gates the release of CI results on the
+        quality of the submission and of the author's past work, so the
+        scoring function does not charge it for delays which only mean a
+        person should look elsewhere for now, such as a live comment thread.
+        The two timestamps therefore differ for such a series.
 
         The file is fetched by other services, so it is kept small: no
         whitespace, and the scores hang directly off the two indexes
@@ -99,7 +105,7 @@ class UIGenerator:
         by_message_id = {}
 
         for series in series_scores:
-            score = series.get("score_zero_at")
+            score = series.get("machine_score_zero_at")
             if not score:
                 continue
 

@@ -131,6 +131,7 @@ Your scoring function receives a `ScoringContext` object with:
 - `cover_letter`: Series cover letter (if any)
 - `cover_comments`: Comments on the cover letter
 - `dev_db`: Developer database for looking up scores and companies
+- `audience`: Who this score is for, `human` or `machine`
 
 Mail from `netdev-bot@kernel.org` (including `+`-suffixed addresses) is dropped
 as it arrives and never shows up in either comment list — it is not discussion.
@@ -182,6 +183,31 @@ def score_patch(context, patch_score):
     return score
 ```
 
+**Audiences:**
+
+The queue and the score export are read for different reasons. A person is
+picking what to review next, while the export gates the release of CI results
+on the quality of the submission and of the author's past work. A live comment
+thread means a person should look elsewhere for now, but it is not a mark
+against the patch, so charging the export for it holds back CI results over a
+discussion which may well be about something else.
+
+The scoring function is therefore called twice per patch, with
+`context.audience` set to `human` and then to `machine`, and branches wherever
+the two disagree:
+
+```python
+    if context.review_comments_present and context.audience == "human":
+        patch_score.add_score_line("Review comments", 48, '💬')
+        score += 48
+```
+
+Both passes share one context, so the comments and checks are parsed once.
+Only the human pass keeps its score lines, they are what the queue draws;
+the machine pass contributes its total and nothing else. A function which
+ignores `audience` produces the same score for both, which is the old
+behavior.
+
 ## Score Export
 
 Alongside the HTML, the UI generator writes `output/scores.json` (configurable
@@ -214,6 +240,9 @@ reaches a zero score, i.e. when it is due to be applied. Scores count down in
 weekday hours only, so the timestamp skips over weekends. Series which are
 already due carry a timestamp in the past. Series with no usable score, which
 means the scoring function failed, are left out.
+
+It is also the `machine` score, not the one the queue counts down to, so for a
+series under discussion the two differ. See **Audiences** above for why.
 
 ## Stats Page
 

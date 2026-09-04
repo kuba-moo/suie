@@ -38,6 +38,8 @@ def score_patch(context, patch_score):
                  context.check_outcomes: Dict mapping expected check names to outcomes
                                         (pass/warning/fail/missing)
                  context.additional_checks: List of checks not in expected_checks config
+                 context.audience: "human" for the queue, "machine" for the
+                                   JSON export which gates CI results
 
         patch_score: PatchScore object where you can add score lines
 
@@ -126,25 +128,31 @@ def score_patch(context, patch_score):
         score += review_adj
         patch_score.add_score_line(f"{len(external_reviews)} reviews", review_adj)
 
-    # Check 5: Fresh comments:
-    since_comment = context.time_since_last_comment_hours
-    if since_comment is None:
-        since_comment = 999
+    # Checks 5 and 6 both hold a series back because a discussion is live,
+    # which is a reason for a person to look elsewhere for now but says
+    # nothing about the submission or about who wrote it. The machine
+    # audience gates the release of CI results on exactly those two things,
+    # so it is not charged either delay.
+    if context.audience == "human":
+        # Check 5: Fresh comments:
+        since_comment = context.time_since_last_comment_hours
+        if since_comment is None:
+            since_comment = 999
 
-    if score < 48 and since_comment <= 6:
-        adj = int(6 - context.time_since_last_comment_hours)
-        score += adj
-        score = min(score, 48)
-        patch_score.add_score_line("Recent comments/review", adj)
-    elif since_comment <= 2:
-        adj = int(2 - context.time_since_last_comment_hours)
-        score += adj
-        patch_score.add_score_line("Recent comments/review", adj)
+        if score < 48 and since_comment <= 6:
+            adj = int(6 - context.time_since_last_comment_hours)
+            score += adj
+            score = min(score, 48)
+            patch_score.add_score_line("Recent comments/review", adj)
+        elif since_comment <= 2:
+            adj = int(2 - context.time_since_last_comment_hours)
+            score += adj
+            patch_score.add_score_line("Recent comments/review", adj)
 
-    # Check 6: Comment threads
-    if context.review_comments_present:
-        patch_score.add_score_line("Review comments", 48, '💬')
-        score += 48
+        # Check 6: Comment threads
+        if context.review_comments_present:
+            patch_score.add_score_line("Review comments", 48, '💬')
+            score += 48
 
     if reviewer_boost:
         adj = max(0, min(12, score - 36))

@@ -1986,7 +1986,7 @@ class SuieApp:
             "age_weekend_hours": age_breakdown["weekend_hours"],
             "age_total_hours": age_breakdown["total_hours"],
             "score": series_score.score,
-            "score_zero_at": self._calculate_score_zero_time(series_score.score),
+            "machine_score_zero_at": self._calculate_score_zero_time(series_score.machine_score),
             "score_lines": [{"emoji": e, "comment": c, "adjustment": a} for e, c, a in series_score.score_lines],
             "is_inactive": is_inactive,
             "needs_ack": series_state == "needs-ack",
