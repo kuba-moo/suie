@@ -1184,6 +1184,58 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             row.classList.toggle('inactive', muted || series.is_inactive);
             row.querySelector('.mute-clock').hidden = !muted;
+            renderSeriesChecks(series, row.querySelector('.series-check-summary'),
+                               muted);
+        }
+
+        // Check badges for the series header. Muted series get one badge per
+        // state with a count instead of one per check, they are commonly the
+        // ones with a wall of missing and failed checks and their names are
+        // not worth the vertical space once we decided to ignore them.
+        function renderSeriesChecks(series, checksEl, collapsed) {
+            const summary = series.checks_summary;
+            const groups = [
+                {checks: summary.failed || [], cls: 'check-fail',
+                 word: 'failed', symbol: '✗'},
+                {checks: summary.warning || [], cls: 'check-warning',
+                 word: 'warning', symbol: '⚠'},
+                {checks: summary.missing || [], cls: 'check-missing',
+                 word: 'missing', symbol: '?'},
+                {checks: summary.pending || [], cls: 'check-pending',
+                 word: 'pending', symbol: '⋯'}
+            ];
+
+            checksEl.innerHTML = '';
+
+            groups.forEach(group => {
+                if (collapsed) {
+                    if (group.checks.length === 0) {
+                        return;
+                    }
+                    const badge = document.createElement('span');
+                    badge.className = `check-badge ${group.cls}`;
+                    badge.textContent = `${group.symbol} ${group.checks.length}`;
+                    badge.title = `Check ${group.word}: ${group.checks.join(', ')}`;
+                    checksEl.appendChild(badge);
+                    return;
+                }
+
+                group.checks.forEach(check => {
+                    const badge = document.createElement('span');
+                    badge.className = `check-badge ${group.cls}`;
+                    badge.textContent = check;
+                    badge.title = `Check ${group.word}: ${check}`;
+                    checksEl.appendChild(badge);
+                });
+            });
+
+            if (summary.passing > 0) {
+                const passingBadge = document.createElement('span');
+                passingBadge.className = 'check-badge check-passing';
+                passingBadge.textContent = `✓ ${summary.passing}`;
+                passingBadge.title = `${summary.passing} checks passing`;
+                checksEl.appendChild(passingBadge);
+            }
         }
 
         function renderSeries() {
@@ -1850,51 +1902,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }
             header.appendChild(reviewersEl);
 
-            // Checks
+            // Checks, filled in by applyMuteState() below
             const checksEl = document.createElement('div');
-            checksEl.className = 'series-checks';
-
-            series.checks_summary.failed.forEach(check => {
-                const badge = document.createElement('span');
-                badge.className = 'check-badge check-fail';
-                badge.textContent = check;
-                badge.title = `Check failed: ${check}`;
-                checksEl.appendChild(badge);
-            });
-
-            series.checks_summary.warning.forEach(check => {
-                const badge = document.createElement('span');
-                badge.className = 'check-badge check-warning';
-                badge.textContent = check;
-                badge.title = `Check warning: ${check}`;
-                checksEl.appendChild(badge);
-            });
-
-            series.checks_summary.missing.forEach(check => {
-                const badge = document.createElement('span');
-                badge.className = 'check-badge check-missing';
-                badge.textContent = check;
-                badge.title = `Check missing: ${check}`;
-                checksEl.appendChild(badge);
-            });
-
-            (series.checks_summary.pending || []).forEach(check => {
-                const badge = document.createElement('span');
-                badge.className = 'check-badge check-pending';
-                badge.textContent = check;
-                badge.title = `Check pending: ${check}`;
-                checksEl.appendChild(badge);
-            });
-
-            // Show passing checks summary
-            if (series.checks_summary.passing > 0) {
-                const passingBadge = document.createElement('span');
-                passingBadge.className = 'check-badge check-passing';
-                passingBadge.textContent = `✓ ${series.checks_summary.passing}`;
-                passingBadge.title = `${series.checks_summary.passing} checks passing`;
-                checksEl.appendChild(passingBadge);
-            }
-
+            checksEl.className = 'series-checks series-check-summary';
             header.appendChild(checksEl);
 
             // Patches container
