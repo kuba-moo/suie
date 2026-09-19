@@ -30,8 +30,17 @@ def _drop_ignored_comments(comments: List[Dict]) -> List[Dict]:
 class StateManager:
     """Manages the in-memory state of patches, series, checks, and comments"""
 
-    def __init__(self):
-        """Initialize the state manager"""
+    def __init__(self, ignored_checks: Optional[List[str]] = None):
+        """
+        Initialize the state manager
+
+        Args:
+            ignored_checks: Check contexts to drop as they arrive, so nothing
+                downstream (scoring, the queue badges, the missing check list)
+                ever sees them
+        """
+        self.ignored_checks: Set[str] = set(ignored_checks or [])
+
         # Core objects
         self.series: Dict[int, Dict] = {}  # series_id -> series data
         self.patches: Dict[int, Dict] = {}  # patch_id -> patch data
@@ -72,8 +81,21 @@ class StateManager:
         logger.debug("Added/updated patch %d: %s",
                     patch_id, patch_data.get('name', 'N/A'))
 
+    def _drop_ignored_checks(self, checks: List[Dict]) -> List[Dict]:
+        """Filter out checks whose context the configuration tells us to ignore"""
+        kept = []
+        for check in checks:
+            context = (check.get('context') or '').strip()
+            if context in self.ignored_checks:
+                logger.debug("Ignoring check %s", context)
+                continue
+            kept.append(check)
+        return kept
+
     def add_check(self, patch_id: int, check_data: Dict):
         """Add a check for a patch"""
+        if not self._drop_ignored_checks([check_data]):
+            return
         self.checks[patch_id].append(check_data)
         logger.debug("Added check for patch %d: %s - %s", patch_id,
                     check_data.get('context', 'N/A'),
@@ -81,6 +103,7 @@ class StateManager:
 
     def set_checks(self, patch_id: int, checks: List[Dict]):
         """Set all checks for a patch (replacing existing)"""
+        checks = self._drop_ignored_checks(checks)
         self.checks[patch_id] = checks
         logger.debug("Set %d checks for patch %d", len(checks), patch_id)
 

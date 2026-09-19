@@ -31,6 +31,13 @@ ui:
     - "test"
     - "checkpatch"
 
+  # Checks to drop as they arrive. They reach neither the scoring function
+  # nor the UI, so they can't be reported as failing or missing. Listing a
+  # check here overrides expected_checks. Example:
+  #   ignored_checks:
+  #     - "flaky_ci"
+  ignored_checks: []
+
   # Optional tracking scripts to insert in HTML <head>
   # Each script will be inserted as-is into the HTML
   tracking_scripts: []

@@ -221,6 +221,7 @@ class SuieApp:
         """
         self.config = self._load_config(config_path)
         self._setup_logging()
+        self._resolve_ignored_checks()
 
         # Initialize components
         logger.info("Initializing Suie...")
@@ -231,7 +232,9 @@ class SuieApp:
             requests_log_path=self.config["logging"].get("requests_log"),
         )
 
-        self.state = StateManager()
+        self.state = StateManager(
+            ignored_checks=self.config["ui"].get("ignored_checks", []),
+        )
 
         self.poller = PatchworkPoller(
             client=self.client,
@@ -336,6 +339,26 @@ class SuieApp:
         except Exception as e:
             logger.error("Failed to load configuration: %s", e)
             sys.exit(1)
+
+    def _resolve_ignored_checks(self):
+        """
+        Reconcile the ignored and expected check lists
+
+        Ignored checks never reach the state, so an expected check which is
+        also ignored would look permanently missing. Ignoring wins.
+        """
+        ui_config = self.config["ui"]
+        ignored = set(ui_config.get("ignored_checks") or [])
+        if not ignored:
+            return
+
+        expected = ui_config.get("expected_checks") or []
+        overlap = [check for check in expected if check in ignored]
+        if overlap:
+            logger.warning("Checks both expected and ignored, ignoring them: %s",
+                           ", ".join(overlap))
+            ui_config["expected_checks"] = [check for check in expected
+                                            if check not in ignored]
 
     def _setup_logging(self):
         """Setup logging based on configuration"""

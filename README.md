@@ -32,7 +32,7 @@ Edit `config.yaml` to configure:
 
 - **Patchwork API**: URL, project, and user agent
 - **State**: How far back to look for active series (default: 7 days)
-- **UI**: Output path, expected checks, display options
+- **UI**: Output path, expected checks, ignored checks, display options
 - **Scoring**: Path to your custom scoring function
 - **Database**: Paths to mailmap and developer statistics files
 
@@ -145,6 +145,10 @@ as it arrives and never shows up in either comment list — it is not discussion
   - Automatically handles check deduplication (keeps latest result)
 - `additional_checks`: List of check dictionaries for checks not in `expected_checks` config
   - Useful for discovering new/unexpected checks
+
+Checks named in the `ignored_checks` configuration are dropped as they arrive,
+like mail from `netdev-bot@kernel.org`. They appear in neither list, nor in the
+raw `checks`, and the UI never draws a badge for them.
 
 **Helper Methods:**
 
