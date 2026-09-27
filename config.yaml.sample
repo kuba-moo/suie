@@ -62,6 +62,18 @@ sorting:
   module_path: "scoring/example_scorer.py"
   function_name: "score_patch"
 
+# Kernel MAINTAINERS file, reloaded once a day
+maintainers:
+  enabled: false
+  url: "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/MAINTAINERS"
+  # file: "/path/to/linux/MAINTAINERS"
+
+  # The UI can filter series by the MAINTAINERS entries their patches hit.
+  # It offers every entry covering these paths, or anything under them.
+  filter_paths:
+    - "net/"
+    - "drivers/net/"
+
 # Developer database configuration
 database:
   # Maps email addresses to canonical names

@@ -81,6 +81,9 @@ class MaintainersEntry:
         self.maintainers = []
         self.reviewers = []
         self.files = []
+        self.excludes = []
+        self.file_regexes = []
+        self.keywords = []
 
         for line in lines[1:]:
             if line[:3] == 'M:\t':
@@ -89,19 +92,38 @@ class MaintainersEntry:
                 self.reviewers.append(Person(line[3:]))
             elif line[:3] == 'F:\t':
                 self.files.append(line[3:])
+            elif line[:3] == 'X:\t':
+                self.excludes.append(line[3:])
+            elif line[:3] in ('N:\t', 'K:\t'):
+                # Perl regexes, get_maintainer.pl applies them with /x
+                try:
+                    regex = re.compile(line[3:], re.VERBOSE)
+                except re.error as e:
+                    logger.warning("Bad regex in %s: %s (%s)", self.title, line, e)
+                    continue
+                if line[0] == 'N':
+                    self.file_regexes.append(regex)
+                else:
+                    self.keywords.append(regex)
 
         self._owners = self.maintainers + self.reviewers
 
-        self._file_match = []
-        self._file_pfx = []
-        for F in self.files:
+        self._file_pfx, self._file_match = self._split_patterns(self.files)
+        self._excl_pfx, self._excl_match = self._split_patterns(self.excludes)
+
+    @staticmethod
+    def _split_patterns(patterns):
+        pfx = []
+        match = []
+        for pattern in patterns:
             # Strip trailing wildcard, it's implicit and slows down the match
-            if F.endswith('*'):
-                F = F[:-1]
-            if '?' in F or '*' in F or '[' in F:
-                self._file_match.append(F)
+            if pattern.endswith('*'):
+                pattern = pattern[:-1]
+            if '?' in pattern or '*' in pattern or '[' in pattern:
+                match.append(pattern)
             else:
-                self._file_pfx.append(F)
+                pfx.append(pattern)
+        return pfx, match
 
     def match_owner(self, person):
         for M in self._owners:
@@ -109,12 +131,53 @@ class MaintainersEntry:
                 return True
         return False
 
-    def match_path(self, path):
-        for F in self._file_pfx:
-            if path.startswith(F):
+    @staticmethod
+    def _match_patterns(path, pfx, match):
+        for pattern in pfx:
+            if path.startswith(pattern):
                 return True
-        for F in self._file_match:
-            if fnmatch.fnmatch(path, F):
+        for pattern in match:
+            if fnmatch.fnmatch(path, pattern):
+                return True
+        return False
+
+    def match_path(self, path):
+        if self._match_patterns(path, self._excl_pfx, self._excl_match):
+            return False
+        if self._match_patterns(path, self._file_pfx, self._file_match):
+            return True
+        for regex in self.file_regexes:
+            if regex.search(path):
+                return True
+        return False
+
+    def match_keywords(self, text, lines):
+        """
+        Whether any K: regex matches one of the lines
+
+        Args:
+            text: The lines joined with newlines, searched first so that
+                a keyword which matches nowhere costs one search rather
+                than one per line
+            lines: The lines themselves, the keyword has to match within
+                a single one of them, like it does for get_maintainer.pl
+        """
+        for regex in self.keywords:
+            if regex.search(text) and any(regex.search(line) for line in lines):
+                return True
+        return False
+
+    def covers_path(self, path):
+        """
+        Whether the entry covers the path, or any file under it
+
+        Args:
+            path: File or directory, directories with a trailing slash
+        """
+        if self.match_path(path):
+            return True
+        for pattern in self.files:
+            if pattern.startswith(path):
                 return True
         return False
 
@@ -126,6 +189,9 @@ class MaintainersList:
 
     def __len__(self):
         return len(self._list)
+
+    def __iter__(self):
+        return iter(self._list)
 
     def add(self, other):
         self._list.append(other)
@@ -143,6 +209,23 @@ class MaintainersList:
         ret = MaintainersList()
         for entry in self._list:
             if entry.match_owner(person):
+                ret.add(entry)
+        return ret
+
+    def find_by_patch(self, paths, text, lines):
+        """Entries whose files the patch touches, or whose keywords it hits"""
+        ret = MaintainersList()
+        for entry in self._list:
+            if any(entry.match_path(path) for path in paths) or \
+               entry.match_keywords(text, lines):
+                ret.add(entry)
+        return ret
+
+    def find_by_covered_paths(self, paths):
+        """Entries covering any of the paths, or anything under them"""
+        ret = MaintainersList()
+        for entry in self._list:
+            if any(entry.covers_path(path) for path in paths):
                 ret.add(entry)
         return ret
 
@@ -281,6 +364,13 @@ class SuieApp:
         self.maintainers = None
         self.maintainers_config = self.config.get("maintainers", {})
         self.maintainers_last_loaded = None
+        # Entries the UI offers to filter on, and the entries each patch
+        # hits, which only change when MAINTAINERS does. The cache is
+        # rebuilt with every UI regeneration, to drop patches we no
+        # longer show.
+        self.maintainers_filter = []
+        self.patch_maintainers = {}
+        self.patch_maintainers_prev = {}
 
         if self.maintainers_config.get("enabled", False):
             self._load_maintainers()
@@ -306,6 +396,15 @@ class SuieApp:
         except Exception as e:
             logger.warning("Failed to load MAINTAINERS: %s", e)
             self.maintainers = None
+
+        self.patch_maintainers = {}
+        self.patch_maintainers_prev = {}
+        self.maintainers_filter = []
+        filter_paths = self.maintainers_config.get("filter_paths", [])
+        if self.maintainers and filter_paths:
+            covered = self.maintainers.entries.find_by_covered_paths(filter_paths)
+            self.maintainers_filter = [entry.title for entry in covered]
+            logger.info("%d MAINTAINERS entries to filter on", len(self.maintainers_filter))
 
     def _check_and_reload_maintainers(self):
         """Check if MAINTAINERS needs reloading (once per day) and reload if needed"""
@@ -462,6 +561,9 @@ class SuieApp:
 
         logger.info("Processing %d active series", len(active_series))
 
+        self.patch_maintainers_prev = self.patch_maintainers
+        self.patch_maintainers = {}
+
         # Score all series
         scored_series = []
         delegates = set()
@@ -480,7 +582,8 @@ class SuieApp:
         scored_series.sort(key=lambda s: s["score"])
 
         # Generate UI
-        self.ui_generator.generate(scored_series, sorted(delegates))
+        self.ui_generator.generate(scored_series, sorted(delegates),
+                                   self.maintainers_filter)
         self.ui_generator.generate_scores(scored_series)
         self.stats_generator.generate(scored_series)
 
@@ -1354,6 +1457,60 @@ class SuieApp:
 
         return deduped
 
+    @staticmethod
+    def _keyword_lines(patch: Dict) -> List[str]:
+        """
+        Lines of a patch which MAINTAINERS keywords are matched against
+
+        Like get_maintainer.pl, every line of the commit message counts,
+        but in the diff only the lines being added or removed do.
+
+        Args:
+            patch: Patch, as returned by Patchwork
+
+        Returns:
+            List of lines
+        """
+        lines = [f"Subject: {patch.get('name', '')}"]
+        lines += (patch.get("content") or "").split('\n')
+
+        for line in (patch.get("diff") or "").split('\n'):
+            if line[:1] not in ('+', '-'):
+                continue
+            # File headers, the same test get_maintainer.pl uses
+            if re.match(r'^(\+\+\+|---)\s+\S', line):
+                continue
+            lines.append(line)
+
+        return lines
+
+    def _match_patch_maintainers(self, patch: Dict) -> List[str]:
+        """
+        Titles of the MAINTAINERS entries a patch hits, by path or keyword
+
+        Args:
+            patch: Patch, as returned by Patchwork
+
+        Returns:
+            List of entry titles, in MAINTAINERS order
+        """
+        if not self.maintainers:
+            return []
+
+        patch_id = patch["id"]
+        if patch_id in self.patch_maintainers:
+            return self.patch_maintainers[patch_id]
+
+        titles = self.patch_maintainers_prev.get(patch_id)
+        if titles is None:
+            paths = self._parse_diff_for_paths(patch.get("diff") or "")
+            lines = self._keyword_lines(patch)
+            entries = self.maintainers.entries.find_by_patch(paths, '\n'.join(lines), lines)
+            titles = [entry.title for entry in entries]
+
+        self.patch_maintainers[patch_id] = titles
+        return titles
+
     def _check_maintainer(self, email: str, paths: List[str]) -> Optional[str]:
         """
         Check if a person is a maintainer or reviewer of any of the modified paths.
@@ -1630,6 +1787,7 @@ class SuieApp:
                     "delegate": delegate,
                     "reviewers": reviewers,
                     "commenters": commenters,
+                    "maintainers": self._match_patch_maintainers(patch),
                 }
             )
 

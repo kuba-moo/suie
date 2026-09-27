@@ -112,6 +112,16 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
 - **Unassigned**: Toggle to show series nobody picked up yet, at the top of the
   list, no matter which delegate is selected
   - Choice saved in browser's localStorage
+- **MAINTAINERS**: The funnel button filters series down to those with a patch
+  hitting one of the checked MAINTAINERS entries
+  - Patches are matched like `get_maintainer.pl` does, by path (`F:`, `N:`,
+    `X:`) and by keyword (`K:`) in the commit message or changed lines
+  - The list holds every entry covering `maintainers.filter_paths`, whether
+    or not any current patch hits it
+  - The filter can be turned off without losing the checked entries, from
+    the list or with a middle click on the funnel, which is highlighted while
+    the filter is on
+  - Both saved in browser's localStorage
 - **Mute**: Middle click a series to dim it and mark it with a clock
   - For series already acted on, while the backend catches up
   - Purely visual, the series stays in the list, "Inactive" is unaffected

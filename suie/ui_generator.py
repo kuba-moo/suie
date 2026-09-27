@@ -43,13 +43,16 @@ class UIGenerator:
         self.scores_path = scores_path or os.path.join(
             os.path.dirname(output_path), "scores.json")
 
-    def generate(self, series_scores: List[Dict], delegates: List[str]):
+    def generate(self, series_scores: List[Dict], delegates: List[str],
+                 maintainers_filter: Optional[List[str]] = None):
         """
         Generate the HTML UI
 
         Args:
             series_scores: List of series with scores and metadata
             delegates: List of possible delegates for filtering
+            maintainers_filter: Titles of the MAINTAINERS entries the user
+                can filter on, the filter is not offered if empty
         """
         # Collect unique tree designations from series
         tree_designations = set()
@@ -61,6 +64,7 @@ class UIGenerator:
         template_data = {
             'series_list': series_scores,
             'delegates': delegates,
+            'maintainers_filter': maintainers_filter or [],
             'tree_designations': sorted(tree_designations),
             'hide_inactive_default': self.hide_inactive_default,
             'expected_checks': self.expected_checks,
@@ -293,6 +297,84 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         button:hover {
             opacity: 0.8;
+        }
+
+        .maint-filter {
+            position: relative;
+        }
+
+        #maint-filter-toggle {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+        }
+
+        #maint-filter-toggle svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        #maint-filter-toggle.active {
+            background: var(--text-link);
+            border-color: var(--text-link);
+            color: var(--bg-primary);
+        }
+
+        .maint-filter-panel {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 10;
+            margin-top: 4px;
+            width: 420px;
+            max-width: 90vw;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .maint-filter-panel[hidden],
+        .maint-filter-list label[hidden] {
+            display: none;
+        }
+
+        .maint-filter-panel label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #maint-filter-search {
+            padding: 6px 10px;
+            border: 1px solid var(--border-input);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .maint-filter-list {
+            max-height: 60vh;
+            overflow-y: auto;
+            border-top: 1px solid var(--border-color);
+            padding-top: 6px;
+        }
+
+        .maint-filter-list label {
+            font-weight: normal;
+            font-size: 13px;
+            padding: 2px 0;
+            cursor: pointer;
+        }
+
+        .maint-filter-list input[type="checkbox"] {
+            flex-shrink: 0;
+            width: 14px;
+            height: 14px;
         }
 
         .series-list {
@@ -952,6 +1034,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         {% endfor %}
                     </select>
                 </div>
+                {% if maintainers_filter %}
+                <div class="control-group maint-filter">
+                    <button id="maint-filter-toggle" aria-label="MAINTAINERS filter">
+                        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"/>
+                        </svg>
+                    </button>
+                    <div class="maint-filter-panel" id="maint-filter-panel" hidden>
+                        <label>
+                            <input type="checkbox" id="maint-filter-enabled">
+                            Filter by MAINTAINERS entry
+                        </label>
+                        <input type="search" id="maint-filter-search" placeholder="Search entries">
+                        <div class="maint-filter-list" id="maint-filter-list"></div>
+                    </div>
+                </div>
+                {% endif %}
                 <div class="control-group">
                     <button id="fold-all" title="Collapse all expanded series">Fold All</button>
                 </div>
@@ -972,6 +1071,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const seriesData = {{ series_list | tojson }};
         const generatedAt = "{{ generated_at }}";
         const sashikoUrl = {{ sashiko_url | tojson }};
+        const maintainersFilter = {{ maintainers_filter | tojson }};
 
         // Sorting state
         let currentSort = {
@@ -986,6 +1086,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             loadMutedSeries();
             loadFiltersFromURL();
             loadIncludeUnassigned();
+            initMaintainersFilter();
             renderSeries();
             updateStats();
 
@@ -1116,6 +1217,138 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         function isUnassigned(series) {
             return !series.delegates || series.delegates.length === 0;
+        }
+
+        // Series can be narrowed down to the MAINTAINERS entries their
+        // patches hit. Picking the entries is tedious, so the filter as
+        // a whole can be switched off and back on without losing them:
+        // from the panel, or with a middle click on the funnel.
+        const MAINT_SELECTED_STORAGE_KEY = 'suie.maintainers';
+        const MAINT_ENABLED_STORAGE_KEY = 'suie.maintainers.enabled';
+
+        let maintSelected = new Set();
+        let maintEnabled = false;
+
+        function loadMaintainersFilter() {
+            try {
+                maintSelected = new Set(JSON.parse(localStorage.getItem(MAINT_SELECTED_STORAGE_KEY)) || []);
+                maintEnabled = localStorage.getItem(MAINT_ENABLED_STORAGE_KEY) === 'true';
+            } catch (err) {
+                console.error('Failed to load the MAINTAINERS filter:', err);
+            }
+        }
+
+        function saveMaintainersFilter() {
+            try {
+                localStorage.setItem(MAINT_SELECTED_STORAGE_KEY, JSON.stringify([...maintSelected]));
+                localStorage.setItem(MAINT_ENABLED_STORAGE_KEY, String(maintEnabled));
+            } catch (err) {
+                console.error('Failed to save the MAINTAINERS filter:', err);
+            }
+        }
+
+        function updateMaintainersToggle() {
+            const button = document.getElementById('maint-filter-toggle');
+
+            button.classList.toggle('active', maintEnabled);
+            button.title = `MAINTAINERS filter: ${maintEnabled ? 'on' : 'off'}, ` +
+                `${maintSelected.size} selected\nMiddle click to turn on or off`;
+            document.getElementById('maint-filter-enabled').checked = maintEnabled;
+        }
+
+        function setMaintainersFilterEnabled(enabled) {
+            maintEnabled = enabled;
+            saveMaintainersFilter();
+            updateMaintainersToggle();
+            renderSeries();
+        }
+
+        function initMaintainersFilter() {
+            if (!maintainersFilter.length) {
+                return;
+            }
+
+            loadMaintainersFilter();
+
+            const button = document.getElementById('maint-filter-toggle');
+            const panel = document.getElementById('maint-filter-panel');
+            const list = document.getElementById('maint-filter-list');
+            const search = document.getElementById('maint-filter-search');
+
+            maintainersFilter.forEach(title => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = maintSelected.has(title);
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) {
+                        maintSelected.add(title);
+                    } else {
+                        maintSelected.delete(title);
+                    }
+                    saveMaintainersFilter();
+                    updateMaintainersToggle();
+                    if (maintEnabled) {
+                        renderSeries();
+                    }
+                });
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(title));
+                list.appendChild(label);
+            });
+
+            search.addEventListener('input', () => {
+                const query = search.value.toLowerCase();
+                list.querySelectorAll('label').forEach(label => {
+                    label.hidden = !label.textContent.toLowerCase().includes(query);
+                });
+            });
+
+            document.getElementById('maint-filter-enabled').addEventListener('change', (e) => {
+                setMaintainersFilterEnabled(e.target.checked);
+            });
+
+            button.addEventListener('click', () => {
+                panel.hidden = !panel.hidden;
+                if (!panel.hidden) {
+                    search.focus();
+                }
+            });
+
+            // Middle click would start an autoscroll otherwise
+            button.addEventListener('mousedown', (e) => {
+                if (e.button === 1) {
+                    e.preventDefault();
+                }
+            });
+
+            button.addEventListener('auxclick', (e) => {
+                if (e.button !== 1) {
+                    return;
+                }
+                e.preventDefault();
+                setMaintainersFilterEnabled(!maintEnabled);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!panel.hidden && !e.target.closest('.maint-filter')) {
+                    panel.hidden = true;
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    panel.hidden = true;
+                }
+            });
+
+            updateMaintainersToggle();
+        }
+
+        function matchesMaintainersFilter(series) {
+            return series.patches.some(patch =>
+                (patch.maintainers || []).some(title => maintSelected.has(title))
+            );
         }
 
         // Series muted by the user with a middle click, mapping the series ID
@@ -1326,6 +1559,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             return false;
                         }
                     }
+                }
+
+                // Apply MAINTAINERS filter, only while it's offered, so a
+                // stale setting can't hide everything
+                if (maintEnabled && maintainersFilter.length &&
+                    !matchesMaintainersFilter(series)) {
+                    return false;
                 }
 
                 // Apply tree designation filter

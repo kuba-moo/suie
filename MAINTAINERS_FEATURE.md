@@ -24,6 +24,11 @@ maintainers:
   # Option 2: Load from URL (comment out 'file' if using URL)
   # url: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/MAINTAINERS
 
+  # Entries covering these paths are offered by the filter in the UI
+  filter_paths:
+    - net/
+    - drivers/net/
+
 # Patchwork configuration (user-agent used for HTTP requests)
 patchwork:
   url: https://patchwork.kernel.org/api
@@ -65,6 +70,18 @@ The code uses the same logic as NIPA's maintainers parser:
 - **M:** tags → Maintainers
 - **R:** tags → Reviewers
 - **F:** tags → File patterns (supports wildcards with `fnmatch`)
+- **X:** tags → File patterns excluded from the entry
+- **N:** tags → Regexes matched against file paths
+- **K:** tags → Regexes matched against the patch, see below
+
+### Entry Filter
+
+Each patch in the UI data carries the titles of all the entries it hits,
+by path or by keyword. As in `get_maintainer.pl`, keywords match any line
+of the subject and commit message, but only added or removed lines of the
+diff. The entries are not shown, they feed the funnel filter, which offers
+every entry covering one of `maintainers.filter_paths`. The matches are
+cached per patch until MAINTAINERS is reloaded.
 
 ### Path Matching
 
