@@ -1,4 +1,4 @@
-"""Standalone page with outstanding patch counts per tree and company"""
+"""Standalone page with outstanding patch counts per tree and submitter"""
 
 import logging
 import os
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class StatsGenerator:
-    """Generates a static page breaking the queue down by tree and company"""
+    """Generates a static page breaking the queue down by tree and submitter"""
 
     def __init__(self, output_path: str,
                  tracking_scripts: Optional[List[str]] = None,
@@ -151,6 +151,10 @@ STATS_TEMPLATE = """<!DOCTYPE html>
             gap: 8px;
         }
 
+        .control-group[hidden] {
+            display: none;
+        }
+
         label {
             font-weight: 500;
         }
@@ -192,7 +196,7 @@ STATS_TEMPLATE = """<!DOCTYPE html>
         }
 
         /* Name, bar, count. Every bar is drawn against the same scale, the
-         * busiest submitter, so the rows can be read against each other */
+         * busiest row, so the rows can be read against each other */
         .bar-row {
             display: grid;
             grid-template-columns: 200px 1fr 50px;
@@ -209,7 +213,8 @@ STATS_TEMPLATE = """<!DOCTYPE html>
         }
 
         /* Submitters with no corpmap entry are people rather than companies,
-         * so they get their name in italics and a hollow bar */
+         * so they get their name in italics and a hollow bar. So do patches
+         * no MAINTAINERS entry claims, they are not an entry either. */
         .bar-row.individual .bar-name {
             font-style: italic;
             color: var(--text-secondary);
@@ -275,10 +280,18 @@ STATS_TEMPLATE = """<!DOCTYPE html>
                     <select id="tree-filter"></select>
                 </div>
                 <div class="control-group">
+                    <label for="group-by">Group by:</label>
+                    <select id="group-by">
+                        <option value="company">Company</option>
+                        <option value="individual">Individual</option>
+                        <option value="maintainers">MAINTAINERS entry</option>
+                    </select>
+                </div>
+                <div class="control-group">
                     <input type="checkbox" id="include-no-tree">
                     <label for="include-no-tree">Include no tree</label>
                 </div>
-                <div class="control-group">
+                <div class="control-group" id="split-unknown-group">
                     <input type="checkbox" id="split-unknown" checked>
                     <label for="split-unknown">Split unknown</label>
                 </div>
@@ -304,14 +317,24 @@ STATS_TEMPLATE = """<!DOCTYPE html>
         const treeDesignations = {{ tree_designations | tojson }};
         const generatedAt = "{{ generated_at }}";
 
-        // Which tree, and which of the three switches, is a mode people stay
-        // in rather than a per visit choice, so keep it across reloads
+        // Which tree, the grouping, and which of the three switches, is a mode
+        // people stay in rather than a per visit choice, so keep it across reloads
         const STORAGE_TREE = 'suie.stats.tree';
+        const STORAGE_GROUP = 'suie.stats.group';
         const STORAGE_NO_TREE = 'suie.stats.noTree';
         const STORAGE_SPLIT = 'suie.stats.splitUnknown';
         const STORAGE_INACTIVE = 'suie.stats.inactive';
 
         const UNKNOWN = 'Unknown';
+        const NO_ENTRY = 'No entry';
+
+        // Matches every file there is, so it would be the longest bar every
+        // time and squash the rest of the chart without saying anything
+        const CATCH_ALL_ENTRY = 'THE REST';
+
+        // Without MAINTAINERS configured there is nothing to group by
+        const hasMaintainers = seriesData.some(series =>
+            series.patches.some(patch => patch.maintainers && patch.maintainers.length));
 
         document.addEventListener('DOMContentLoaded', () => {
             initializeTheme();
@@ -321,6 +344,7 @@ STATS_TEMPLATE = """<!DOCTYPE html>
             updateStats();
 
             document.getElementById('tree-filter').addEventListener('change', onTreeChange);
+            document.getElementById('group-by').addEventListener('change', onGroupChange);
             document.getElementById('include-no-tree').addEventListener('change', onSettingChange);
             document.getElementById('split-unknown').addEventListener('change', onSettingChange);
             document.getElementById('include-inactive').addEventListener('change', onSettingChange);
@@ -352,12 +376,18 @@ STATS_TEMPLATE = """<!DOCTYPE html>
 
             document.getElementById('generated-time').textContent = formatRelativeTime(genTime);
             buildTreeOptions();
+
+            if (!hasMaintainers) {
+                document.querySelector('#group-by option[value="maintainers"]').remove();
+            }
         }
 
         function loadSettings() {
-            // The tree in the URL wins over the stored one, so a view can be
-            // linked without the reader's own choice overriding it
-            const urlTree = new URLSearchParams(window.location.search).get('tree');
+            // The tree and grouping in the URL win over the stored ones, so a
+            // view can be linked without the reader's own choice overriding it
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlTree = urlParams.get('tree');
+            const urlGroup = urlParams.get('group');
 
             try {
                 document.getElementById('include-no-tree').checked =
@@ -375,18 +405,29 @@ STATS_TEMPLATE = """<!DOCTYPE html>
                     Array.from(select.options).some(opt => opt.value === tree)) {
                     select.value = tree;
                 }
+
+                const group = urlGroup !== null ? urlGroup : localStorage.getItem(STORAGE_GROUP);
+                const groupSelect = document.getElementById('group-by');
+
+                if (group !== null &&
+                    Array.from(groupSelect.options).some(opt => opt.value === group)) {
+                    groupSelect.value = group;
+                }
             } catch (err) {
                 console.error('Failed to load the stats settings:', err);
             }
 
             // The counts in the option labels depend on the switches above
             buildTreeOptions();
+            updateSplitUnknown();
         }
 
         function saveSettings() {
             try {
                 localStorage.setItem(STORAGE_TREE,
                     document.getElementById('tree-filter').value);
+                localStorage.setItem(STORAGE_GROUP,
+                    document.getElementById('group-by').value);
                 localStorage.setItem(STORAGE_NO_TREE,
                     String(document.getElementById('include-no-tree').checked));
                 localStorage.setItem(STORAGE_SPLIT,
@@ -398,8 +439,9 @@ STATS_TEMPLATE = """<!DOCTYPE html>
             }
         }
 
-        function onTreeChange() {
+        function updateURL() {
             const tree = document.getElementById('tree-filter').value;
+            const group = document.getElementById('group-by').value;
             const url = new URL(window.location);
 
             if (tree) {
@@ -407,10 +449,32 @@ STATS_TEMPLATE = """<!DOCTYPE html>
             } else {
                 url.searchParams.delete('tree');
             }
+            // Company is the default, keep the URL short for it
+            if (group !== 'company') {
+                url.searchParams.set('group', group);
+            } else {
+                url.searchParams.delete('group');
+            }
             window.history.replaceState({}, '', url);
+        }
 
+        function onTreeChange() {
+            updateURL();
             saveSettings();
             render();
+        }
+
+        function onGroupChange() {
+            updateURL();
+            saveSettings();
+            updateSplitUnknown();
+            render();
+        }
+
+        function updateSplitUnknown() {
+            // Only companies have an unknown to split
+            document.getElementById('split-unknown-group').hidden =
+                document.getElementById('group-by').value !== 'company';
         }
 
         function onSettingChange() {
@@ -492,10 +556,50 @@ STATS_TEMPLATE = """<!DOCTYPE html>
         // Companies get a bar each. Authors with no corpmap entry get one too,
         // when splitting is on, because a single Unknown bar hides the fact
         // that one person can out submit a whole company.
+        function groupByCompany(series) {
+            const splitUnknown = document.getElementById('split-unknown').checked;
+            const company = series.author_company;
+            const key = company || (splitUnknown ? authorName(series) : UNKNOWN);
+
+            return [{key: key, count: series.patches.length, individual: !company}];
+        }
+
+        function groupByIndividual(series) {
+            return [{key: authorName(series), count: series.patches.length, individual: false}];
+        }
+
+        // A patch counts towards every entry it hits, so the bars add up to
+        // more than the total, and a series towards every entry any of its
+        // patches hits
+        function groupByMaintainers(series) {
+            const counts = new Map();
+
+            series.patches.forEach(patch => {
+                const entries = (patch.maintainers || []).filter(
+                    title => title !== CATCH_ALL_ENTRY);
+
+                if (!entries.length) {
+                    entries.push(NO_ENTRY);
+                }
+                entries.forEach(title => {
+                    counts.set(title, (counts.get(title) || 0) + 1);
+                });
+            });
+
+            return [...counts].map(([title, count]) =>
+                ({key: title, count: count, individual: title === NO_ENTRY}));
+        }
+
+        const GROUPINGS = {
+            company: {group: groupByCompany, one: 'submitter', many: 'submitters'},
+            individual: {group: groupByIndividual, one: 'submitter', many: 'submitters'},
+            maintainers: {group: groupByMaintainers, one: 'entry', many: 'entries'},
+        };
+
         function aggregate() {
             const tree = document.getElementById('tree-filter').value;
             const includeNoTree = document.getElementById('include-no-tree').checked;
-            const splitUnknown = document.getElementById('split-unknown').checked;
+            const grouping = GROUPINGS[document.getElementById('group-by').value];
             const rows = new Map();
             let patches = 0;
             let seriesCount = 0;
@@ -511,16 +615,16 @@ STATS_TEMPLATE = """<!DOCTYPE html>
                     return;
                 }
 
-                const company = series.author_company;
-                const key = company || (splitUnknown ? authorName(series) : UNKNOWN);
-                let row = rows.get(key);
+                grouping.group(series).forEach(share => {
+                    let row = rows.get(share.key);
 
-                if (!row) {
-                    row = {key: key, count: 0, series: 0, individual: !company};
-                    rows.set(key, row);
-                }
-                row.count += series.patches.length;
-                row.series += 1;
+                    if (!row) {
+                        row = {key: share.key, count: 0, series: 0, individual: share.individual};
+                        rows.set(share.key, row);
+                    }
+                    row.count += share.count;
+                    row.series += 1;
+                });
                 patches += series.patches.length;
                 seriesCount += 1;
             });
@@ -529,7 +633,8 @@ STATS_TEMPLATE = """<!DOCTYPE html>
                 rows: [...rows.values()].sort(
                     (a, b) => b.count - a.count || a.key.localeCompare(b.key)),
                 patches: patches,
-                seriesCount: seriesCount
+                seriesCount: seriesCount,
+                grouping: grouping
             };
         }
 
@@ -589,7 +694,7 @@ STATS_TEMPLATE = """<!DOCTYPE html>
 
             totals.textContent = plural(data.patches, 'patch', 'patches') + ' in ' +
                                  plural(data.seriesCount, 'series', 'series') + ', ' +
-                                 plural(data.rows.length, 'submitter', 'submitters');
+                                 plural(data.rows.length, data.grouping.one, data.grouping.many);
         }
 
         function plural(count, one, many) {

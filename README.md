@@ -264,7 +264,7 @@ series under discussion the two differ. See **Audiences** above for why.
 
 Alongside the queue, the UI generator writes `output/stats.html` (configurable
 via `ui.stats_path`), which breaks the backlog down by tree and by the author's
-company. It answers "who is this tree waiting on", which the queue itself, being
+company, the author, or the MAINTAINERS entry. It answers "who is this tree waiting on", which the queue itself, being
 a flat list, does not.
 
 Nothing links to it. The queue header is busy enough, so the page is opened
@@ -279,16 +279,21 @@ Controls:
 
 - **Tree**: Which tree to count, or "All trees". Each option carries its own
   count, so the dropdown doubles as a summary
+- **Group by**: Company (default), individual submitter, or MAINTAINERS entry
+  - By entry, a patch counts towards every entry it hits, so the bars add up
+    to more than the total. Patches no entry claims share a hollow "No entry"
+    bar. `THE REST` matches every patch and is left out
+  - The entry grouping is only offered when MAINTAINERS is configured
 - **Include no tree**: Series whose subject carries no tree tag are left out by
   default. Checking this counts them against whichever tree is selected
-- **Split unknown**: On by default, every author with no company mapping gets
+- **Split unknown**: Company grouping only. On by default, every author with no company mapping gets
   their own bar. Off, they collapse into a single "Unknown"
   - A single "Unknown" bar hides the fact that one person can out-submit a
     whole company
 - **Inactive**: Off by default, only series with a patch still in `new`,
   `under-review` or `needs-ack` count
-- All four are saved in browser's localStorage, and the tree is also readable
-  from `?tree=` so a view can be linked
+- All five are saved in browser's localStorage, and the tree and grouping are
+  also readable from `?tree=` and `?group=` so a view can be linked
 
 The counts reach back `state.lookback_days`, which the page shows next to the
 generated time. This is a recent backlog, not an all time one. A patch counts
