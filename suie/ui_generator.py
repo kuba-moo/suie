@@ -988,8 +988,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="control-group">
                     <label for="needs-ack-filter">Needs ACK:</label>
                     <select id="needs-ack-filter">
-                        <option value="hide" selected>Hide</option>
-                        <option value="any">Any</option>
+                        <option value="hide">Hide</option>
+                        <option value="any" selected>Any</option>
                         <option value="only">Only</option>
                     </select>
                 </div>
