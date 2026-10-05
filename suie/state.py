@@ -2,29 +2,32 @@
 
 import logging
 import re
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 
 logger = logging.getLogger(__name__)
 
-# Senders whose mail is never discussion. Their comments are dropped as they
-# arrive, so nothing downstream (review tags, commenter badges, time since the
-# last comment) ever sees them.
+# Senders whose mail is never discussion. Their comments are set aside as they
+# arrive, so nothing reading the regular comment lists (review tags, commenter
+# badges, time since the last comment) ever sees them. The scorer can still
+# ask for them on their own, some of the bots want an answer from the author.
 IGNORED_COMMENTERS = re.compile(r'netdev-bot(\+[^@]*)?@kernel\.org', re.IGNORECASE)
 
 
-def _drop_ignored_comments(comments: List[Dict]) -> List[Dict]:
-    """Filter out comments posted by senders we do not count as discussion"""
+def _split_ignored_comments(comments: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
+    """Separate comments posted by senders we do not count as discussion"""
     kept = []
+    ignored = []
     for comment in comments:
         email = (comment.get('submitter') or {}).get('email') or ''
         if IGNORED_COMMENTERS.fullmatch(email.strip().strip('<>')):
             logger.debug("Ignoring comment from %s", email)
+            ignored.append(comment)
             continue
         kept.append(comment)
-    return kept
+    return kept, ignored
 
 
 class StateManager:
@@ -51,6 +54,9 @@ class StateManager:
         self.cover_letters: Dict[int, Dict] = {}  # cover_id -> cover data
         # cover_id -> list of comments
         self.cover_comments: Dict[int, List[Dict]] = defaultdict(list)
+        # Same as the two above, for comments from IGNORED_COMMENTERS
+        self.ignored_patch_comments: Dict[int, List[Dict]] = defaultdict(list)
+        self.ignored_cover_comments: Dict[int, List[Dict]] = defaultdict(list)
 
         # Tracking
         self.last_event_id: Optional[int] = None
@@ -109,14 +115,14 @@ class StateManager:
 
     def add_patch_comment(self, patch_id: int, comment_data: Dict):
         """Add a comment for a patch"""
-        if not _drop_ignored_comments([comment_data]):
-            return
-        self.patch_comments[patch_id].append(comment_data)
+        kept, ignored = _split_ignored_comments([comment_data])
+        self.patch_comments[patch_id].extend(kept)
+        self.ignored_patch_comments[patch_id].extend(ignored)
         logger.debug("Added comment for patch %d", patch_id)
 
     def set_patch_comments(self, patch_id: int, comments: List[Dict]):
         """Set all comments for a patch (replacing existing)"""
-        comments = _drop_ignored_comments(comments)
+        comments, self.ignored_patch_comments[patch_id] = _split_ignored_comments(comments)
         self.patch_comments[patch_id] = comments
         logger.debug("Set %d comments for patch %d", len(comments), patch_id)
 
@@ -128,14 +134,14 @@ class StateManager:
 
     def add_cover_comment(self, cover_id: int, comment_data: Dict):
         """Add a comment for a cover letter"""
-        if not _drop_ignored_comments([comment_data]):
-            return
-        self.cover_comments[cover_id].append(comment_data)
+        kept, ignored = _split_ignored_comments([comment_data])
+        self.cover_comments[cover_id].extend(kept)
+        self.ignored_cover_comments[cover_id].extend(ignored)
         logger.debug("Added comment for cover letter %d", cover_id)
 
     def set_cover_comments(self, cover_id: int, comments: List[Dict]):
         """Set all comments for a cover letter (replacing existing)"""
-        comments = _drop_ignored_comments(comments)
+        comments, self.ignored_cover_comments[cover_id] = _split_ignored_comments(comments)
         self.cover_comments[cover_id] = comments
         logger.debug("Set %d comments for cover letter %d", len(comments), cover_id)
 
@@ -163,6 +169,10 @@ class StateManager:
         """Get all comments for a patch"""
         return self.patch_comments.get(patch_id, [])
 
+    def get_ignored_patch_comments(self, patch_id: int) -> List[Dict]:
+        """Get the comments from IGNORED_COMMENTERS for a patch"""
+        return self.ignored_patch_comments.get(patch_id, [])
+
     def get_cover_letter(self, series_id: int) -> Optional[Dict]:
         """Get the cover letter for a series"""
         series = self.series.get(series_id)
@@ -179,6 +189,10 @@ class StateManager:
     def get_cover_comments(self, cover_id: int) -> List[Dict]:
         """Get all comments for a cover letter"""
         return self.cover_comments.get(cover_id, [])
+
+    def get_ignored_cover_comments(self, cover_id: int) -> List[Dict]:
+        """Get the comments from IGNORED_COMMENTERS for a cover letter"""
+        return self.ignored_cover_comments.get(cover_id, [])
 
     def get_active_series(self, lookback_days: int = 7) -> List[Dict]:
         """

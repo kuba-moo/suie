@@ -29,6 +29,15 @@ upstream_pr_group = {
     "luiz.dentz@gmail.com",
 }
 
+# Bots which ask the submitter for more information. Until the author (or
+# anyone) posts on the series after their latest query it costs 24h. Whether
+# the reply is actually in the bot's subthread doesn't matter, authors may
+# answer all the bots in one place.
+info_request_bots = {
+    "netdev-bot+sinfo@kernel.org",
+    "netdev-bot+sashiko@kernel.org",
+}
+
 def score_patch(context, patch_score):
     """
     Score a patch based on readiness to be applied
@@ -128,11 +137,11 @@ def score_patch(context, patch_score):
         score += review_adj
         patch_score.add_score_line(f"{len(external_reviews)} reviews", review_adj)
 
-    # Checks 5 and 6 both hold a series back because a discussion is live,
+    # Checks 5 to 7 all hold a series back because a discussion is live,
     # which is a reason for a person to look elsewhere for now but says
     # nothing about the submission or about who wrote it. The machine
     # audience gates the release of CI results on exactly those two things,
-    # so it is not charged either delay.
+    # so it is not charged any of these delays.
     if context.audience == "human":
         # Check 5: Fresh comments:
         since_comment = context.time_since_last_comment_hours
@@ -153,6 +162,12 @@ def score_patch(context, patch_score):
         if context.review_comments_present:
             patch_score.add_score_line("Review comments", 48, '💬')
             score += 48
+
+        # Check 7: Unanswered bot queries
+        since_bot = context.get_time_since_bot_comment(info_request_bots)
+        if since_bot is not None and since_comment > since_bot:
+            patch_score.add_score_line("Unanswered bot query", 24, '🤖')
+            score += 24
 
     if reviewer_boost:
         adj = max(0, min(12, score - 36))

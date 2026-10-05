@@ -618,6 +618,21 @@ class SuieApp:
             comments_map, cover_comments
         )
 
+        # And since the most recent comment of each bot, across the series
+        bot_comments = {}
+        ignored_comments = [c for patch in patches
+                            for c in self.state.get_ignored_patch_comments(patch["id"])]
+        if cover_letter:
+            ignored_comments += self.state.get_ignored_cover_comments(cover_letter["id"])
+        for comment in ignored_comments:
+            email = ((comment.get("submitter") or {}).get("email") or "").strip().lower()
+            bot_comments.setdefault(email, []).append(comment)
+        time_since_bot_comment_hours = {}
+        for email, comments in bot_comments.items():
+            hours = self._calculate_time_since_last_comment({}, comments)
+            if hours is not None:
+                time_since_bot_comment_hours[email] = hours
+
         # Score the series
         expected_checks = self.config["ui"].get("expected_checks", [])
         return self.scoring_engine.score_series(
@@ -631,6 +646,7 @@ class SuieApp:
             age_breakdown["weekday_hours"],
             age_breakdown["weekend_hours"],
             time_since_last_comment_hours,
+            time_since_bot_comment_hours,
         )
 
     def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int, author_email: str,

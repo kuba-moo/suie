@@ -145,8 +145,11 @@ Your scoring function receives a `ScoringContext` object with:
 - `dev_db`: Developer database for looking up scores and companies
 - `audience`: Who this score is for, `human` or `machine`
 
-Mail from `netdev-bot@kernel.org` (including `+`-suffixed addresses) is dropped
-as it arrives and never shows up in either comment list — it is not discussion.
+Mail from `netdev-bot@kernel.org` (including `+`-suffixed addresses) is set
+aside as it arrives and never shows up in either comment list — it is not
+discussion. Some of those bots ask the author questions though, so the time
+since each bot's latest comment on the series is kept, see
+`get_time_since_bot_comment()` below.
 
 **Check Information (Structured):**
 
@@ -156,8 +159,7 @@ as it arrives and never shows up in either comment list — it is not discussion
 - `additional_checks`: List of check dictionaries for checks not in `expected_checks` config
   - Useful for discovering new/unexpected checks
 
-Checks named in the `ignored_checks` configuration are dropped as they arrive,
-like mail from `netdev-bot@kernel.org`. They appear in neither list, nor in the
+Checks named in the `ignored_checks` configuration are dropped as they arrive. They appear in neither list, nor in the
 raw `checks`, and the UI never draws a badge for them.
 
 **Helper Methods:**
@@ -167,6 +169,9 @@ raw `checks`, and the UI never draws a badge for them.
 - `context.get_author_reviewer_score()`
 - `context.get_external_review_tags()` - Review tags from outside author's company
 - `context.has_external_reviews()`
+- `context.get_time_since_bot_comment(bots)` - Hours since the newest comment on
+  the series from any of the given bot addresses, `None` if they did not comment.
+  Compare with `time_since_last_comment_hours` to tell if anyone replied since.
 - `context.get_check_status(context_name)` - (Legacy) Get raw check status
 - `context.get_failed_checks()` - (Legacy) Get raw failed checks
 - `context.get_missing_checks(expected_checks)` - (Legacy) Get missing checks

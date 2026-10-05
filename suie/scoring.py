@@ -395,6 +395,7 @@ class ScoringContext:
                  series_age_weekday_hours: float = 0,
                  series_age_weekend_hours: float = 0,
                  time_since_last_comment_hours: Optional[float] = None,
+                 time_since_bot_comment_hours: Optional[Dict[str, float]] = None,
                  audience: str = AUDIENCE_HUMAN):
         """
         Initialize the scoring context
@@ -412,6 +413,9 @@ class ScoringContext:
             series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
             series_age_weekend_hours: Age of series in weekend hours
             time_since_last_comment_hours: Hours since most recent comment (None if no comments)
+            time_since_bot_comment_hours: Bot address -> hours since its most
+                recent comment anywhere in the series. Bots are the senders
+                whose comments never make it into the comment lists.
             audience: Who this pass is scoring for, AUDIENCE_HUMAN or
                 AUDIENCE_MACHINE. The engine reuses one context for both
                 passes and flips this between them.
@@ -433,6 +437,7 @@ class ScoringContext:
 
         # Time since last comment
         self.time_since_last_comment_hours = time_since_last_comment_hours
+        self.time_since_bot_comment_hours = time_since_bot_comment_hours or {}
 
         # Initialize attributes
         self.review_tags = []  # List of (tag_type, email) tuples
@@ -616,6 +621,22 @@ class ScoringContext:
             return match.group(1) or match.group(2)
         return None
 
+    def get_time_since_bot_comment(self, bots) -> Optional[float]:
+        """
+        Get the hours since the most recent comment from any of the bots
+
+        Args:
+            bots: Collection of bot email addresses
+
+        Returns:
+            Hours since the newest comment from the bots, or None if none of
+            them commented on the series
+        """
+        bots = {bot.strip().lower() for bot in bots}
+        hours = [h for email, h in self.time_since_bot_comment_hours.items()
+                 if email in bots]
+        return min(hours, default=None)
+
     def get_author_email(self) -> str:
         """Get the author's email address"""
         submitter = self.patch.get('submitter', {})
@@ -733,7 +754,9 @@ class ScoringEngine:
                    cover_comments: List[Dict], expected_checks: Optional[List[str]] = None,
                    series_age_weekday_hours: float = 0,
                    series_age_weekend_hours: float = 0,
-                   time_since_last_comment_hours: Optional[float] = None) -> PatchScore:
+                   time_since_last_comment_hours: Optional[float] = None,
+                   time_since_bot_comment_hours: Optional[Dict[str, float]] = None
+                   ) -> PatchScore:
         """
         Score a single patch
 
@@ -755,7 +778,7 @@ class ScoringEngine:
         context = ScoringContext(patch, series, all_patches, checks, comments,
                                cover_letter, cover_comments, self.dev_db, expected_checks,
                                series_age_weekday_hours, series_age_weekend_hours,
-                               time_since_last_comment_hours)
+                               time_since_last_comment_hours, time_since_bot_comment_hours)
 
         # Two passes over one context. Scoring is arithmetic over data which
         # is already in hand, the cost is in parsing the comments and checks,
@@ -804,7 +827,9 @@ class ScoringEngine:
                     cover_comments: List[Dict], expected_checks: Optional[List[str]] = None,
                     series_age_weekday_hours: float = 0,
                     series_age_weekend_hours: float = 0,
-                    time_since_last_comment_hours: Optional[float] = None) -> SeriesScore:
+                    time_since_last_comment_hours: Optional[float] = None,
+                    time_since_bot_comment_hours: Optional[Dict[str, float]] = None
+                    ) -> SeriesScore:
         """
         Score a series (score is the maximum of all patch scores)
 
@@ -819,6 +844,7 @@ class ScoringEngine:
             series_age_weekday_hours: Age of series in weekday hours (excluding weekends)
             series_age_weekend_hours: Age of series in weekend hours
             time_since_last_comment_hours: Hours since most recent comment (None if no comments)
+            time_since_bot_comment_hours: Bot address -> hours since its most recent comment
 
         Returns:
             SeriesScore object
@@ -834,7 +860,8 @@ class ScoringEngine:
             patch_score = self.score_patch(patch, series, patches, checks, comments,
                                           cover_letter, cover_comments, expected_checks,
                                           series_age_weekday_hours, series_age_weekend_hours,
-                                          time_since_last_comment_hours)
+                                          time_since_last_comment_hours,
+                                          time_since_bot_comment_hours)
             series_score.patch_scores.append(patch_score)
 
         # Series score is the maximum (worst) patch score
