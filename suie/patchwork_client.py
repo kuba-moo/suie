@@ -85,7 +85,7 @@ class PatchworkClient:
             count = len(data) if isinstance(data, list) else 1
             self._log_request(url, duration, count)
 
-            return data
+            return data, response.headers
         except Exception as e:
             duration = time.time() - start_time
             self._log_request(url, duration, 0, str(e))
@@ -114,7 +114,7 @@ class PatchworkClient:
 
         while True:
             params['page'] = page
-            data = self._make_request(endpoint, params)
+            data, headers = self._make_request(endpoint, params)
 
             if not data:
                 break
@@ -122,8 +122,9 @@ class PatchworkClient:
             results.extend(data)
 
             # Check if there are more pages
-            # Patchwork API returns an empty list when no more results
-            if len(data) < params['per_page']:
+            if len(data) < params['per_page'] or
+               not "Link" in headers or
+               not 'rel="next"' in headers["Link"]:
                 break
 
             page += 1
@@ -152,7 +153,7 @@ class PatchworkClient:
 
     def get_series_detail(self, series_id: int) -> Dict:
         """Get detailed information about a series"""
-        return self._make_request(f'series/{series_id}')
+        return self._make_request(f'series/{series_id}')[0]
 
     def get_patches(self, series_id: Optional[int] = None, project: Optional[str] = None,
                    since: Optional[str] = None, **kwargs) -> List[Dict]:
@@ -181,7 +182,7 @@ class PatchworkClient:
 
     def get_patch_detail(self, patch_id: int) -> Dict:
         """Get detailed information about a patch"""
-        return self._make_request(f'patches/{patch_id}')
+        return self._make_request(f'patches/{patch_id}')[0]
 
     def get_patch_comments(self, patch_id: int) -> List[Dict]:
         """Get comments for a patch"""
@@ -193,7 +194,7 @@ class PatchworkClient:
 
     def get_cover_detail(self, cover_id: int) -> Dict:
         """Get detailed information about a cover letter"""
-        return self._make_request(f'covers/{cover_id}')
+        return self._make_request(f'covers/{cover_id}')[0]
 
     def get_cover_comments(self, cover_id: int) -> List[Dict]:
         """Get comments for a cover letter"""
@@ -239,7 +240,7 @@ class PatchworkClient:
 
         while True:
             params['page'] = page
-            data = self._make_request('events', params)
+            data, headers = self._make_request('events', params)
 
             if not data:
                 break
@@ -288,7 +289,9 @@ class PatchworkClient:
                 break
 
             # Check if there are more pages
-            if len(data) < params['per_page']:
+            if len(data) < params['per_page'] or
+               not "Link" in headers or
+               not 'rel="next"' in headers["Link"]:
                 break
 
             page += 1
