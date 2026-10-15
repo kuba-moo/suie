@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional
 from jinja2 import Template
 
-from .ui_generator import THEME_CSS
+from .ui_generator import THEME_CSS, TIP_CSS, TIP_JS
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,8 @@ class StatsGenerator:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "tracking_scripts": self.tracking_scripts,
             "theme_css": THEME_CSS,
+            "tip_css": TIP_CSS,
+            "tip_js": TIP_JS,
         }
 
         html = Template(STATS_TEMPLATE).render(**template_data)
@@ -78,6 +80,8 @@ STATS_TEMPLATE = """<!DOCTYPE html>
     {% endfor %}
     <style>
 {{ theme_css | safe }}
+
+{{ tip_css | safe }}
 
         * {
             box-sizing: border-box;
@@ -325,6 +329,8 @@ STATS_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <script>
+{{ tip_js | safe }}
+
         // Data embedded from Python, the same series the review queue lists
         const seriesData = {{ series_list | tojson }};
         const treeDesignations = {{ tree_designations | tojson }};
@@ -684,7 +690,7 @@ STATS_TEMPLATE = """<!DOCTYPE html>
                 const bar = document.createElement('div');
                 const count = document.createElement('div');
 
-                row.className = 'bar-row' + (entry.individual ? ' individual' : '');
+                row.className = 'bar-row tip' + (entry.individual ? ' individual' : '');
                 row.title = entry.key + ' - ' + plural(entry.count, 'patch', 'patches') +
                             ' in ' + plural(entry.series, 'series', 'series');
 

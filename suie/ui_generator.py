@@ -137,6 +137,8 @@ class UIGenerator:
         template = Template(HTML_TEMPLATE)
         data['tracking_scripts'] = self.tracking_scripts
         data['theme_css'] = THEME_CSS
+        data['tip_css'] = TIP_CSS
+        data['tip_js'] = TIP_JS
         return template.render(**data)
 
 
@@ -185,6 +187,86 @@ THEME_CSS = """        :root {
         }"""
 
 
+# Touch screens have no hover, so tooltips are out of reach there. Elements
+# whose tooltip says something the page does not, marked with the tip
+# class, show it in a bubble on tap instead. Shared by both pages.
+TIP_CSS = """        .tip-bubble {
+            position: absolute;
+            z-index: 20;
+            max-width: min(320px, calc(100vw - 16px));
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            font-size: 13px;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        /* iOS only delivers taps to a document listener for elements
+         * that look clickable */
+        @media (hover: none) {
+            .tip {
+                cursor: pointer;
+            }
+        }"""
+
+TIP_JS = """        (() => {
+            // Decided per tap rather than with a (hover: none) query, some
+            // phones claim to hover because they support a stylus
+            let touchTap = false;
+            let bubble = null;
+            let shownFor = null;
+
+            function hideTip() {
+                if (bubble) {
+                    bubble.remove();
+                }
+                bubble = null;
+                shownFor = null;
+            }
+
+            document.addEventListener('pointerdown', (e) => {
+                touchTap = e.pointerType !== 'mouse';
+            }, true);
+
+            // Capture phase, so the tap does not also expand the series
+            document.addEventListener('click', (e) => {
+                const target = e.target.closest('.tip');
+                const again = target && target === shownFor;
+
+                hideTip();
+                if (!touchTap || !target || !target.title) {
+                    return;
+                }
+                e.stopPropagation();
+                e.preventDefault();
+                if (again) {
+                    return;
+                }
+
+                bubble = document.createElement('div');
+                bubble.className = 'tip-bubble';
+                bubble.textContent = target.title;
+                document.body.appendChild(bubble);
+                shownFor = target;
+
+                const rect = target.getBoundingClientRect();
+                const width = bubble.offsetWidth;
+                const height = bubble.offsetHeight;
+                const left = Math.max(8, Math.min(rect.left,
+                    document.documentElement.clientWidth - width - 8));
+                const below = rect.bottom + 6 + height <= window.innerHeight;
+                const top = below ? rect.bottom + 6 : rect.top - height - 6;
+
+                bubble.style.left = `${left + window.scrollX}px`;
+                bubble.style.top = `${top + window.scrollY}px`;
+            }, true);
+
+            window.addEventListener('scroll', hideTip, {passive: true});
+            window.addEventListener('resize', hideTip);
+        })();"""
+
+
 # HTML template with embedded JavaScript
 HTML_TEMPLATE = """<!DOCTYPE html>
 <!DOCTYPE html>
@@ -199,6 +281,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     {% endfor %}
     <style>
 {{ theme_css | safe }}
+
+{{ tip_css | safe }}
 
         * {
             box-sizing: border-box;
@@ -1260,6 +1344,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <script>
+{{ tip_js | safe }}
+
         // Data embedded from Python
         // All dates are in ISO 8601 format with UTC timezone (from Patchwork API)
         const seriesData = {{ series_list | tojson }};
@@ -2005,6 +2091,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             } else {
                 authorNameEl.title = series.author;
             }
+            authorNameEl.classList.add('tip');
             authorNameEl.style.overflow = 'hidden';
             authorNameEl.style.textOverflow = 'ellipsis';
             authorNameEl.style.whiteSpace = 'nowrap';
@@ -2012,7 +2099,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             if (series.author_company) {
                 const companyBadge = document.createElement('span');
-                companyBadge.className = 'company-badge';
+                companyBadge.className = 'company-badge tip';
                 companyBadge.textContent = series.author_company;
                 companyBadge.title = `Company: ${series.author_company}`;
                 authorEl.appendChild(companyBadge);
@@ -2167,6 +2254,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 series.score_lines.forEach(line => {
                     if (line.emoji) {
                         const emojiSpan = document.createElement('span');
+                        emojiSpan.className = 'tip';
                         emojiSpan.textContent = line.emoji;
                         emojiSpan.title = `${line.comment} (${line.adjustment >= 0 ? '+' : ''}${line.adjustment}h)`;
                         emojiSpan.style.cursor = 'help';
@@ -2230,7 +2318,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             if (series.reviewers_full_comment && series.reviewers_full_comment.length > 0) {
                 series.reviewers_full_comment.forEach(reviewer => {
                     const badge = document.createElement('span');
-                    badge.className = 'reviewer-badge-comment';  // Light green background, green border
+                    badge.className = 'reviewer-badge-comment tip';  // Light green background, green border
 
                     // Wrap Ⓜ and Ⓡ symbols in styled spans
                     let reviewerHtml = escapeHtml(reviewer);
@@ -2256,7 +2344,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             if (series.reviewers_full_original && series.reviewers_full_original.length > 0) {
                 series.reviewers_full_original.forEach(reviewer => {
                     const badge = document.createElement('span');
-                    badge.className = 'reviewer-badge-full';  // Gray background, green border
+                    badge.className = 'reviewer-badge-full tip';  // Gray background, green border
 
                     // Wrap Ⓜ and Ⓡ symbols in styled spans
                     let reviewerHtml = escapeHtml(reviewer);
@@ -2282,7 +2370,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             if (series.reviewers_partial && series.reviewers_partial.length > 0) {
                 series.reviewers_partial.forEach(reviewer => {
                     const badge = document.createElement('span');
-                    badge.className = 'reviewer-badge-partial';
+                    badge.className = 'reviewer-badge-partial tip';
 
                     // Wrap Ⓜ and Ⓡ symbols in styled spans
                     let reviewerHtml = escapeHtml(reviewer);
@@ -2308,7 +2396,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             if (series.commenters && series.commenters.length > 0) {
                 series.commenters.forEach(commenter => {
                     const badge = document.createElement('span');
-                    badge.className = 'commenter-badge';
+                    badge.className = 'commenter-badge tip';
                     badge.textContent = commenter;
                     badge.title = `${commenter} (commented without review tag on at least one patch)`;
                     reviewersEl.appendChild(badge);
@@ -2409,13 +2497,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         const badge = document.createElement('span');
                         // Internal reviewers get a distinct muted style
                         if (internal) {
-                            badge.className = 'reviewer-badge-internal';
+                            badge.className = 'reviewer-badge-internal tip';
                             badge.title = `${name} (same company as author)`;
                         } else if (source === 'original') {
-                            badge.className = 'reviewer-badge-original';
+                            badge.className = 'reviewer-badge-original tip';
                             badge.title = `${name} (reviewed in original patch)`;
                         } else {
-                            badge.className = 'reviewer-badge-comment';
+                            badge.className = 'reviewer-badge-comment tip';
                             badge.title = `${name} (reviewed in comments)`;
                         }
                         badge.textContent = name;
@@ -2427,7 +2515,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 if (patch.commenters && patch.commenters.length > 0) {
                     patch.commenters.forEach(commenter => {
                         const badge = document.createElement('span');
-                        badge.className = 'commenter-badge';
+                        badge.className = 'commenter-badge tip';
                         badge.textContent = commenter;
                         badge.title = `${commenter} (commented without review tag)`;
                         reviewersEl.appendChild(badge);
