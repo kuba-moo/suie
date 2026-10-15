@@ -257,6 +257,19 @@ STATS_TEMPLATE = """<!DOCTYPE html>
         }
 
         @media (max-width: 700px) {
+            body {
+                padding: 8px;
+            }
+
+            header,
+            .chart {
+                padding: 12px;
+            }
+
+            header {
+                margin-bottom: 8px;
+            }
+
             .bar-row {
                 grid-template-columns: 120px 1fr 40px;
                 gap: 8px;

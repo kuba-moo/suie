@@ -442,6 +442,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             align-items: center;
         }
 
+        .series-idcol {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .series-links {
+            display: flex;
+            gap: 8px;
+            font-size: 11px;
+        }
+
         .series-id {
             font-weight: 600;
             color: var(--text-link);
@@ -459,10 +471,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .series-author {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
             color: var(--text-secondary);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .series-titlecol {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .series-title-badges {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            flex-shrink: 0;
         }
 
         .series-title {
@@ -476,6 +507,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         .series-age {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
             color: var(--text-secondary);
             font-size: 13px;
         }
@@ -484,6 +518,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: var(--text-secondary);
             font-size: 13px;
             font-weight: 500;
+        }
+
+        .series-statecol {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
 
         .series-state {
@@ -960,11 +1000,165 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             white-space: nowrap;
         }
 
-        @media (max-width: 1000px) {
+        /* The table needs roughly 900px. Below that every series becomes
+         * a card: ID, age and score on top, then one line per column. */
+        @media (max-width: 900px) {
+            body {
+                padding: 8px;
+            }
+
+            header {
+                position: relative;
+                padding: 12px;
+                margin-bottom: 8px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+
+            .stats {
+                white-space: normal;
+            }
+
+            .controls {
+                gap: 8px 12px;
+                margin-top: 10px;
+            }
+
+            /* iOS zooms into anything below 16px on focus */
+            select, input[type="search"] {
+                font-size: 16px;
+            }
+
+            button {
+                padding: 8px 12px;
+            }
+
+            .maint-filter {
+                position: static;
+            }
+
+            .maint-filter-panel {
+                left: 8px;
+                right: 8px;
+                width: auto;
+                max-width: none;
+            }
+
+            .maint-filter-list {
+                max-height: 50vh;
+            }
+
+            .maint-filter-list label {
+                padding: 6px 0;
+            }
+
+            /* Only the sortable columns are left, as sort buttons */
+            .series-list-header {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px 16px;
+                padding: 10px 12px;
+            }
+
+            .series-list-header > :not(.sortable-header) {
+                display: none;
+            }
+
+            .series-list-header::before {
+                content: "Sort:";
+            }
+
             .series-header {
-                grid-template-columns: 60px 120px 1fr 70px 70px 90px 100px 130px;
-                gap: 10px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                gap: 6px 12px;
+                padding: 10px 12px;
+            }
+
+            .series-header > :empty {
+                display: none;
+            }
+
+            .series-idcol {
+                flex: 1;
+                flex-direction: row;
+                align-items: baseline;
+                gap: 12px;
+            }
+
+            .series-links {
                 font-size: 13px;
+                gap: 12px;
+            }
+
+            .series-age {
+                flex-direction: row;
+                gap: 4px;
+            }
+
+            .series-titlecol,
+            .series-author,
+            .series-statecol,
+            .series-reviewers,
+            .series-check-summary {
+                flex-basis: 100%;
+            }
+
+            .series-titlecol {
+                order: 1;
+                align-items: flex-start;
+            }
+
+            /* No hover tooltip on touch, so expanding shows the full title */
+            .series-row.expanded .series-title {
+                -webkit-line-clamp: unset;
+                line-clamp: unset;
+            }
+
+            .series-author {
+                order: 2;
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .series-author > div {
+                min-width: 0;
+            }
+
+            .series-author .company-badge {
+                flex-shrink: 0;
+                max-width: 50%;
+            }
+
+            .series-statecol {
+                order: 3;
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 5px;
+            }
+
+            .series-reviewers {
+                order: 4;
+            }
+
+            .series-check-summary {
+                order: 5;
+            }
+
+            .patch-row {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding: 10px 12px 10px 24px;
+            }
+
+            .patch-row > :empty {
+                display: none;
             }
         }
     </style>
@@ -1706,9 +1900,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // Series ID + Links (column with ID on top, links below)
             const idLinksEl = document.createElement('div');
-            idLinksEl.style.display = 'flex';
-            idLinksEl.style.flexDirection = 'column';
-            idLinksEl.style.gap = '4px';
+            idLinksEl.className = 'series-idcol';
 
             const idEl = document.createElement('div');
             idEl.className = 'series-id';
@@ -1744,9 +1936,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // Links container
             const linksEl = document.createElement('div');
-            linksEl.style.display = 'flex';
-            linksEl.style.gap = '8px';
-            linksEl.style.fontSize = '11px';
+            linksEl.className = 'series-links';
 
             if (series.lore_url) {
                 const loreLink = document.createElement('a');
@@ -1797,9 +1987,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Author (with company badge below)
             const authorEl = document.createElement('div');
             authorEl.className = 'series-author';
-            authorEl.style.display = 'flex';
-            authorEl.style.flexDirection = 'column';
-            authorEl.style.gap = '4px';
 
             const authorNameEl = document.createElement('div');
             // Wrap Ⓜ and Ⓡ symbols in styled spans
@@ -1835,11 +2022,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // Title container with title left-aligned and badges right-aligned
             const titleContainerEl = document.createElement('div');
-            titleContainerEl.style.display = 'flex';
-            titleContainerEl.style.justifyContent = 'space-between';
-            titleContainerEl.style.alignItems = 'center';
-            titleContainerEl.style.gap = '10px';
-            titleContainerEl.style.minWidth = '0';  // Allow text truncation
+            titleContainerEl.className = 'series-titlecol';
 
             // Get tree designation from backend (may have been extracted from first patch)
             const treeDesignation = series.tree_designation || null;
@@ -1870,11 +2053,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // Badges container (right side) - stacked: tree+count on top, versions below
             const badgesContainer = document.createElement('div');
-            badgesContainer.style.display = 'flex';
-            badgesContainer.style.flexDirection = 'column';
-            badgesContainer.style.alignItems = 'flex-end';
-            badgesContainer.style.gap = '4px';
-            badgesContainer.style.flexShrink = '0';  // Don't shrink badges
+            badgesContainer.className = 'series-title-badges';
 
             // Top row: tree designation + patch count
             const topRow = document.createElement('div');
@@ -1961,9 +2140,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Age (with weekend time on separate line)
             const ageEl = document.createElement('div');
             ageEl.className = 'series-age';
-            ageEl.style.display = 'flex';
-            ageEl.style.flexDirection = 'column';
-            ageEl.style.gap = '2px';
 
             const ageFormat = formatAgeWithWeekend(series.age_weekday_hours, series.age_weekend_hours);
             const mainAgeEl = document.createElement('div');
@@ -2004,9 +2180,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // State + Delegates (combined column with state on top, delegates below)
             const stateDelegatesEl = document.createElement('div');
-            stateDelegatesEl.style.display = 'flex';
-            stateDelegatesEl.style.flexDirection = 'column';
-            stateDelegatesEl.style.gap = '4px';
+            stateDelegatesEl.className = 'series-statecol';
 
             // State
             const stateContainer = document.createElement('div');
@@ -2050,7 +2224,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
             // External Reviewers and Commenters
             const reviewersEl = document.createElement('div');
-            reviewersEl.className = 'series-checks';
+            reviewersEl.className = 'series-checks series-reviewers';
 
             // Show reviewers who reviewed ALL patches via comment (green background)
             if (series.reviewers_full_comment && series.reviewers_full_comment.length > 0) {
