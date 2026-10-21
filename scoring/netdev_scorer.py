@@ -27,6 +27,7 @@ upstream_pr_group = {
     "fw@strlen.de",
     "johannes@sipsolutions.net",
     "luiz.dentz@gmail.com",
+    "mkl@pengutronix.de",
 }
 
 # Bots which ask the submitter for more information. Until the author (or
