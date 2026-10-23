@@ -122,9 +122,8 @@ class PatchworkClient:
             results.extend(data)
 
             # Check if there are more pages
-            if len(data) < params['per_page'] or
-               not "Link" in headers or
-               not 'rel="next"' in headers["Link"]:
+            if (len(data) < params['per_page'] or
+                    'rel="next"' not in headers.get('Link', '')):
                 break
 
             page += 1
@@ -289,9 +288,8 @@ class PatchworkClient:
                 break
 
             # Check if there are more pages
-            if len(data) < params['per_page'] or
-               not "Link" in headers or
-               not 'rel="next"' in headers["Link"]:
+            if (len(data) < params['per_page'] or
+                    'rel="next"' not in headers.get('Link', '')):
                 break
 
             page += 1
