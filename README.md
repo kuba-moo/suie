@@ -162,12 +162,29 @@ since each bot's latest comment on the series is kept, see
 Checks named in the `ignored_checks` configuration are dropped as they arrive. They appear in neither list, nor in the
 raw `checks`, and the UI never draws a badge for them.
 
+**Authorship:**
+
+Patches are often sent on behalf of someone else, sub-maintainers send
+their contributors' work, colleagues send each other's patches. Such
+patches name their author in a `From:` line at the top of the body, and
+the context tells the author (who wrote the code) from the poster (who
+sent it), matching how ml-stat.py credits authorship.
+
 **Helper Methods:**
 
-- `context.get_author_email()`
+- `context.get_author_email()` - In-body `From:` if someone else sent the
+  patch, the submitter otherwise
+- `context.get_poster_email()` - Whoever sent the patch
+- `context.get_series_poster_email()` - Whoever sent the series
+- `context.is_forwarded()` - Patch was sent by someone else than its author
 - `context.get_author_company()`
 - `context.get_author_reviewer_score()`
-- `context.get_external_review_tags()` - Review tags from outside author's company
+- `context.get_author_postings()` - Change sets and pull requests posted
+- `context.get_poster_reviewer_score()`, `context.get_poster_company_reviewer_score()`,
+  `context.get_poster_postings()` - As above, for whoever sent the patch
+- `context.get_external_review_tags()` - Review tags from outside author's
+  company. The poster of someone else's patch counts as a reviewer too
+  (`forwarded-by`) if they are from another company.
 - `context.has_external_reviews()`
 - `context.get_time_since_bot_comment(bots)` - Hours since the newest comment on
   the series from any of the given bot addresses, `None` if they did not comment.
@@ -332,6 +349,7 @@ suie/
 │   └── example_scorer.py    # Example scoring function
 └── suie/                    # Main package
     ├── __init__.py
+    ├── authorship.py        # Who wrote a patch vs who sent it
     ├── main.py              # Application entry point
     ├── patchwork_client.py  # Patchwork API client
     ├── state.py             # State manager

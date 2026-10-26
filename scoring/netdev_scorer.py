@@ -61,7 +61,7 @@ def score_patch(context, patch_score):
     reviewer_boost = False
 
     # Pull requests: nothing to score, base delay and nothing else
-    if context.get_author_email().strip().lower() in upstream_pr_group:
+    if context.get_series_poster_email().strip().lower() in upstream_pr_group:
         patch_score.add_score_line("Upstream PR", 0, '⭐')
         return score - context.series_age_weekday_hours
 
@@ -98,20 +98,23 @@ def score_patch(context, patch_score):
             patch_score.add_score_line(f"Additional checks failed: {', '.join(additional_failed)}", 1)
 
     # Check 2: Author reputation affects score
+    # Penalties follow the author, but the in-body From: is not authenticated,
+    # so whoever sent the patch has to qualify for the new author waiver and
+    # the boost. Senders vouch for the people they send patches for.
     author_score = context.get_author_reviewer_score()
-    author_postings = context.get_author_postings()
+    poster_postings = context.get_poster_postings()
 
     # Most newbies are LLM-happy, give then 24h of delay
-    if author_postings < 3:
+    if poster_postings < 3:
         score += 24
-        patch_score.add_score_line(f"New author ({author_postings} postings)", 0, '🟠')
+        patch_score.add_score_line(f"New author ({poster_postings} postings)", 0, '🟠')
     elif author_score < -40:
         # Give everyone a credit of 40, most occasional posters will be slightly
         # in the red on review scores.
         score += 12
         patch_score.add_score_line(f"Author score negative ({author_score})", 12, '🔴')
     elif author_score > 50:
-        reviewer_boost = True
+        reviewer_boost = context.get_poster_reviewer_score() > 50
 
     # Check 3: Company score
     company_score = context.get_author_company_reviewer_score()
@@ -121,7 +124,11 @@ def score_patch(context, patch_score):
         patch_score.add_score_line(f"Company score negative ({company_score})", 24, '🟥')
 
     # Check 4: Reviews
+    # The sender of a patch from another company counts as a reviewer,
+    # unless they are new themselves, anyone can write a From: line
     external_reviews = context.get_external_review_tags()
+    if poster_postings < 3:
+        external_reviews = [r for r in external_reviews if r[0] != 'forwarded-by']
 
     approved = False
     for _, email in external_reviews:

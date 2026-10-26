@@ -8,6 +8,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Callable, Tuple
 
+from .authorship import get_inbody_author
+
 
 logger = logging.getLogger(__name__)
 
@@ -325,20 +327,23 @@ class DeveloperDatabase:
 
     def get_posting_count(self, email: str) -> int:
         """
-        Get the number of change-sets authored by an individual
+        Get the number of change-sets an individual wrote or sent on behalf
+        of someone else, plus the pull requests they sent
 
         Args:
             email: Email address
 
         Returns:
-            Number of change-sets posted (0 if not found)
+            Number of change-sets and pull requests posted (0 if not found)
         """
         individual_stats = self.stats.get('individual', {})
         stats_key = self._find_in_stats(email)
 
         if stats_key:
             author_data = individual_stats[stats_key].get('author', {})
-            return author_data.get('cs', 0)
+            # Pull requests never form change sets, ml-stat counts them
+            # separately (and older stats don't count them at all)
+            return author_data.get('cs', 0) + author_data.get('pr', 0)
 
         return 0
 
@@ -519,10 +524,9 @@ class ScoringContext:
             if patch_email:
                 author_emails.add(self.dev_db.get_canonical_identity(patch_email).lower())
             # Parse "From: Name <email>" at the start of patch content
-            patch_content = p.get('content', '')
-            from_match = re.match(r'^From:\s*[^<]*<([^>]+)>', patch_content)
-            if from_match:
-                author_emails.add(self.dev_db.get_canonical_identity(from_match.group(1).strip()).lower())
+            inbody_author = get_inbody_author(p.get('content', ''))
+            if inbody_author:
+                author_emails.add(self.dev_db.get_canonical_identity(inbody_author[1]).lower())
 
         # Check comments for tags
         all_comments = list(self.comments)
@@ -637,10 +641,31 @@ class ScoringContext:
                  if email in bots]
         return min(hours, default=None)
 
-    def get_author_email(self) -> str:
-        """Get the author's email address"""
+    def get_poster_email(self) -> str:
+        """Get the email address of whoever sent the patch"""
         submitter = self.patch.get('submitter', {})
         return submitter.get('email', '')
+
+    def get_series_poster_email(self) -> str:
+        """Get the email address of whoever sent the series"""
+        submitter = self.series.get('submitter') or self.patch.get('submitter', {})
+        return submitter.get('email', '')
+
+    def get_author_email(self) -> str:
+        """
+        Get the author's email address. Patches sent on behalf of someone
+        else name their author in the in-body From: line.
+        """
+        inbody_author = get_inbody_author(self.patch.get('content', ''))
+        if inbody_author:
+            return inbody_author[1]
+        return self.get_poster_email()
+
+    def is_forwarded(self) -> bool:
+        """Check if the patch was sent by someone else than its author"""
+        author = self.dev_db.get_canonical_identity(self.get_author_email()).lower()
+        poster = self.dev_db.get_canonical_identity(self.get_poster_email()).lower()
+        return author != poster
 
     def get_author_company(self) -> Optional[str]:
         """Get the author's company"""
@@ -655,12 +680,29 @@ class ScoringContext:
         return self.dev_db.get_company_reviewer_score(self.get_author_email())
 
     def get_author_postings(self) -> int:
-        """Get the number of change-sets the author has posted"""
+        """Get the number of change-sets and pull requests the author has posted"""
         return self.dev_db.get_posting_count(self.get_author_email())
+
+    def get_poster_reviewer_score(self) -> float:
+        """Get the reviewer score for whoever sent the patch"""
+        return self.dev_db.get_reviewer_score(self.get_poster_email())
+
+    def get_poster_company_reviewer_score(self) -> float:
+        """Get the company reviewer score for whoever sent the patch"""
+        return self.dev_db.get_company_reviewer_score(self.get_poster_email())
+
+    def get_poster_postings(self) -> int:
+        """
+        Get the number of change-sets and pull requests whoever sent the
+        patch has posted, including ones they sent for someone else
+        """
+        return self.dev_db.get_posting_count(self.get_poster_email())
 
     def get_external_review_tags(self) -> List[Tuple[str, str]]:
         """
-        Get review tags from people not in the same company as the author
+        Get review tags from people not in the same company as the author.
+        Sending someone else's patch vouches for it, so the sender counts
+        as a reviewer too, as ('forwarded-by', email).
 
         Returns:
             List of (tag_type, email) tuples
@@ -672,6 +714,12 @@ class ScoringContext:
             reviewer_company = self.dev_db.get_company(email)
             if reviewer_company != author_company or author_company is None:
                 external_tags.append((tag_type, email))
+
+        if self.is_forwarded():
+            poster_email = self.get_poster_email()
+            poster_company = self.dev_db.get_company(poster_email)
+            if poster_company != author_company or author_company is None:
+                external_tags.append(('forwarded-by', poster_email))
 
         return external_tags
 
