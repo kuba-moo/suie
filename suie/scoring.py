@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Callable, Tuple
 
-from .authorship import get_inbody_author
+from .authorship import get_inbody_author, get_pull_authors
 
 
 logger = logging.getLogger(__name__)
@@ -666,6 +666,43 @@ class ScoringContext:
         author = self.dev_db.get_canonical_identity(self.get_author_email()).lower()
         poster = self.dev_db.get_canonical_identity(self.get_poster_email()).lower()
         return author != poster
+
+    def get_forwarded_share(self) -> float:
+        """
+        Get the share of the series written by someone else than whoever sent
+        the series. For pull requests count the commits in the shortlog.
+
+        Returns:
+            Fraction between 0 and 1
+        """
+        poster_email = self.get_series_poster_email()
+        poster = self.dev_db.get_canonical_identity(poster_email).lower()
+
+        for p in self.all_patches:
+            if not p.get('pull_url'):
+                continue
+            # The shortlog only has names, take both the one the poster used
+            # and the one the mailmap knows them by
+            names = {(self.series.get('submitter') or {}).get('name') or '',
+                     poster.split('<')[0]}
+            names = {n.strip().lower() for n in names if n.strip()}
+            commits = get_pull_authors(p.get('content', ''))
+            total = sum(commits.values())
+            if not total:
+                return 0.0
+            own = sum(n for name, n in commits.items() if name.strip().lower() in names)
+            return (total - own) / total
+
+        if not self.all_patches:
+            return 0.0
+        forwarded = 0
+        for p in self.all_patches:
+            inbody_author = get_inbody_author(p.get('content', ''))
+            if not inbody_author:
+                continue
+            if self.dev_db.get_canonical_identity(inbody_author[1]).lower() != poster:
+                forwarded += 1
+        return forwarded / len(self.all_patches)
 
     def get_author_company(self) -> Optional[str]:
         """Get the author's company"""

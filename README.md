@@ -168,7 +168,8 @@ Patches are often sent on behalf of someone else, sub-maintainers send
 their contributors' work, colleagues send each other's patches. Such
 patches name their author in a `From:` line at the top of the body, and
 the context tells the author (who wrote the code) from the poster (who
-sent it), matching how ml-stat.py credits authorship.
+sent it), matching how ml-stat.py credits authorship. Pull requests have
+no patches, the authors come from the `git request-pull` shortlog.
 
 **Helper Methods:**
 
@@ -177,6 +178,8 @@ sent it), matching how ml-stat.py credits authorship.
 - `context.get_poster_email()` - Whoever sent the patch
 - `context.get_series_poster_email()` - Whoever sent the series
 - `context.is_forwarded()` - Patch was sent by someone else than its author
+- `context.get_forwarded_share()` - Share of the series written by someone
+  else than whoever sent the series, for pull requests share of the commits
 - `context.get_author_company()`
 - `context.get_author_reviewer_score()`
 - `context.get_author_postings()` - Change sets and pull requests posted

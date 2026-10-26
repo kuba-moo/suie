@@ -20,7 +20,9 @@ trusted_reviewer_group = {
 }
 
 # Maintainers sending us pull requests, the code was reviewed in their
-# tree, all we do is wait out the base delay before pulling.
+# tree, all we do is wait out the base delay before pulling. Only for
+# sets which are mostly other people's code (UPSTREAM_PR_MIN_FORWARDED),
+# their own code is scored like anyone else's.
 upstream_pr_group = {
     "steffen.klassert@secunet.com",
     "pablo@netfilter.org",
@@ -28,6 +30,7 @@ upstream_pr_group = {
     "johannes@sipsolutions.net",
     "luiz.dentz@gmail.com",
 }
+UPSTREAM_PR_MIN_FORWARDED = 0.5
 
 # Bots which ask the submitter for more information. Until the author (or
 # anyone) posts on the series after their latest query it costs 24h. Whether
@@ -62,8 +65,15 @@ def score_patch(context, patch_score):
 
     # Pull requests: nothing to score, base delay and nothing else
     if context.get_series_poster_email().strip().lower() in upstream_pr_group:
-        patch_score.add_score_line("Upstream PR", 0, '⭐')
-        return score - context.series_age_weekday_hours
+        forwarded = context.get_forwarded_share()
+        if forwarded >= UPSTREAM_PR_MIN_FORWARDED:
+            patch_score.add_score_line(f"Upstream PR ({forwarded:.0%} forwarded)", 0, '⭐')
+            return score - context.series_age_weekday_hours
+
+    # Someone else's code in a mostly own set from a sub-maintainer: they
+    # reviewed it and answer for it, score it as theirs
+    owned = context.get_poster_email().strip().lower() in upstream_pr_group and \
+        context.is_forwarded()
 
     # Check 1: Process expected checks from configuration
     # context.check_outcomes contains the outcome for each expected check
@@ -101,7 +111,10 @@ def score_patch(context, patch_score):
     # Penalties follow the author, but the in-body From: is not authenticated,
     # so whoever sent the patch has to qualify for the new author waiver and
     # the boost. Senders vouch for the people they send patches for.
-    author_score = context.get_author_reviewer_score()
+    if owned:
+        author_score = context.get_poster_reviewer_score()
+    else:
+        author_score = context.get_author_reviewer_score()
     poster_postings = context.get_poster_postings()
 
     # Most newbies are LLM-happy, give then 24h of delay
@@ -117,7 +130,10 @@ def score_patch(context, patch_score):
         reviewer_boost = context.get_poster_reviewer_score() > 50
 
     # Check 3: Company score
-    company_score = context.get_author_company_reviewer_score()
+    if owned:
+        company_score = context.get_poster_company_reviewer_score()
+    else:
+        company_score = context.get_author_company_reviewer_score()
 
     if company_score < 0:
         score += 24
@@ -135,7 +151,9 @@ def score_patch(context, patch_score):
         for maint in maintainer_group | trusted_reviewer_group:
             approved |= email in maint
 
-    if approved:
+    if owned:
+        patch_score.add_score_line("Forwarded by sub-maintainer", 0)
+    elif approved:
         # No extra wait, ready to go!
         patch_score.add_score_line("Approved", 0)
     else:

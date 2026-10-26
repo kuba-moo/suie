@@ -7,6 +7,8 @@ from email.utils import parseaddr
 INBODY_HDR_RE = re.compile(r'^(From|Date|Subject):\s*(.*)$')
 # Separator line of git format-patch output, if someone pasted it in whole
 MBOX_FROM_RE = re.compile(r'^From [0-9a-f]{40} ')
+# Author line in the git request-pull shortlog, "Name (N):"
+SHORTLOG_AUTHOR_RE = re.compile(r'^(\S.*?) \(\d+\):$')
 
 
 def get_inbody_author(content: str) -> tuple[str, str] | None:
@@ -37,3 +39,32 @@ def get_inbody_author(content: str) -> tuple[str, str] | None:
             return name, addr
         break
     return None
+
+
+def get_pull_authors(content: str) -> dict[str, int]:
+    """
+    Count the commits per author in the git request-pull shortlog of a pull
+    request. Merges are left out, the shortlog credits them to whoever merged.
+
+    Args:
+        content: Pull request content as Patchwork stores it
+
+    Returns:
+        Author name -> number of commits
+    """
+    authors = {}
+    current = None
+    for line in (content or '').splitlines():
+        m = SHORTLOG_AUTHOR_RE.match(line)
+        if m:
+            current = m.group(1)
+            authors.setdefault(current, 0)
+        elif not line.strip():
+            # Blank line ends the author's block, the diffstat follows the last
+            current = None
+        elif current and line[0] in ' \t':
+            if not line.strip().startswith('Merge '):
+                authors[current] += 1
+        else:
+            current = None
+    return authors
