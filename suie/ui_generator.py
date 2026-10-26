@@ -890,6 +890,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-weight: 500;
         }
 
+        .patch-author {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
         .failed-check-item {
             font-size: 12px;
             padding: 4px 8px;
@@ -2163,6 +2168,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 nameEl.className = 'patch-name';
                 nameEl.textContent = patch.name;
                 patchInfoEl.appendChild(nameEl);
+
+                // Patches sent on behalf of someone else name their author
+                if (patch.author) {
+                    const authorEl = document.createElement('div');
+                    authorEl.className = 'patch-author';
+                    authorEl.textContent = `by ${patch.author}`;
+                    patchInfoEl.appendChild(authorEl);
+                }
 
                 // Display failed checks as rows under patch name
                 if (patch.checks_failed.length > 0) {

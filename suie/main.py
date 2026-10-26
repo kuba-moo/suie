@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 import requests
 import yaml
 
+from .authorship import get_inbody_author
 from .patchwork_client import PatchworkClient
 from .poller import PatchworkPoller
 from .scoring import DeveloperDatabase, ScoringEngine, SeriesScore
@@ -649,11 +650,29 @@ class SuieApp:
             time_since_bot_comment_hours,
         )
 
-    def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int, author_email: str,
+    def _canonical_set(self, emails: list[str]) -> set:
+        """Canonical identities of a list of email addresses, lower case"""
+        return {self.dev_db.get_canonical_identity(e).lower() for e in emails if e}
+
+    def _patch_author(self, patch: dict) -> dict:
+        """
+        Get the author of a patch, the in-body From: if someone else sent it
+
+        Returns:
+            Dict with the author's name and email
+        """
+        inbody_author = get_inbody_author(patch.get("content", ""))
+        if inbody_author:
+            return {"name": inbody_author[0], "email": inbody_author[1]}
+        submitter = patch.get("submitter") or {}
+        return {"name": submitter.get("name") or "", "email": submitter.get("email") or ""}
+
+    def _extract_commenters_without_tags(self, comments: List[Dict], series_id: int,
+                                            author_emails: list[str],
                                             cover_comments: List[Dict] = None) -> List[str]:
         """
         Extract names of people who commented without providing review tags.
-        Excludes the author from the list.
+        Excludes the authors (and whoever sent the patch for them) from the list.
 
         IMPORTANT: If a person adds a review tag in ANY comment, they are NOT
         considered a commenter (reviewers have priority).
@@ -661,7 +680,7 @@ class SuieApp:
         Args:
             comments: List of comments
             series_id: Series ID (for logging)
-            author_email: Author's email to exclude
+            author_emails: Emails of the author and the sender to exclude
             cover_comments: Optional list of cover letter comments
 
         Returns:
@@ -672,7 +691,7 @@ class SuieApp:
             all_comments.extend(cover_comments)
 
         # Get author's canonical email for comparison
-        author_canonical = self.dev_db.get_canonical_identity(author_email).lower()
+        author_canonicals = self._canonical_set(author_emails)
 
         # First pass: identify all people who provided review tags in ANY comment
         reviewers = set()  # Set of canonical emails who provided review tags
@@ -708,7 +727,7 @@ class SuieApp:
             # Skip if this is the author
             if email:
                 commenter_canonical = self.dev_db.get_canonical_identity(email).lower()
-                if commenter_canonical == author_canonical:
+                if commenter_canonical in author_canonicals:
                     continue
 
                 # Skip if this person provided review tags in ANY comment
@@ -739,12 +758,13 @@ class SuieApp:
 
         return sorted(list(commenters))
 
-    def _extract_reviewer_names_with_source(self, patch: Dict, comments: List[Dict], author_email: str,
+    def _extract_reviewer_names_with_source(self, patch: Dict, comments: List[Dict],
+                                               author_emails: list[str],
                                                cover_comments: List[Dict] = None) -> Dict[str, str]:
         """
         Extract reviewer names with their source (original or comment).
         Looks for Reviewed-by, Acked-by, and Tested-by tags.
-        Excludes the author from the list.
+        Excludes the author (and whoever sent the patch for them) from the list.
 
         Priority rules:
         - If review tag in comments → 'comment' (engaged via comment)
@@ -757,7 +777,7 @@ class SuieApp:
         Args:
             patch: Patch data
             comments: List of comments for the patch
-            author_email: Author's email to exclude
+            author_emails: Emails of the author and the sender to exclude
             cover_comments: Optional list of cover letter comments
 
         Returns:
@@ -771,7 +791,7 @@ class SuieApp:
         commenters = set()       # Set of commenter names (commented without review tag)
 
         # Get author's canonical email for comparison
-        author_canonical = self.dev_db.get_canonical_identity(author_email).lower()
+        author_canonicals = self._canonical_set(author_emails)
 
         # Helper to normalize name for matching
         def normalize_name(name):
@@ -794,7 +814,7 @@ class SuieApp:
                 if email_match:
                     reviewer_email = email_match.group(1).strip()
                     reviewer_canonical = self.dev_db.get_canonical_identity(reviewer_email).lower()
-                    if reviewer_canonical == author_canonical:
+                    if reviewer_canonical in author_canonicals:
                         continue  # Skip author
 
                 # Extract name from "Name <email>" format
@@ -822,7 +842,7 @@ class SuieApp:
             # Skip if this is the author
             if email:
                 reviewer_canonical = self.dev_db.get_canonical_identity(email).lower()
-                if reviewer_canonical == author_canonical:
+                if reviewer_canonical in author_canonicals:
                     continue
 
             if name:
@@ -840,7 +860,7 @@ class SuieApp:
                 # Skip if this is the author
                 if email:
                     reviewer_canonical = self.dev_db.get_canonical_identity(email).lower()
-                    if reviewer_canonical == author_canonical:
+                    if reviewer_canonical in author_canonicals:
                         continue
 
                 if name:
@@ -865,7 +885,7 @@ class SuieApp:
             # Skip if this is the author
             if email:
                 commenter_canonical = self.dev_db.get_canonical_identity(email).lower()
-                if commenter_canonical == author_canonical:
+                if commenter_canonical in author_canonicals:
                     continue
 
             # If no name, try to extract from email
@@ -1649,7 +1669,6 @@ class SuieApp:
         # Get author email early - needed for filtering reviewers/commenters
         submitter = series.get("submitter", {})
         author_email = submitter.get("email", "")
-        author_company = self.dev_db.get_company(author_email) if author_email else None
 
         # Aggregate check status across all patches
         # For each check context, track the worst state across all patches
@@ -1770,31 +1789,43 @@ class SuieApp:
             if delegate_data:
                 delegate = delegate_data.get("username")
 
+            # The patch may have been sent on behalf of someone else, both
+            # them and the sender are on the submitting side
+            patch_author = self._patch_author(patch)
+            submitting_side = [author_email, (patch.get("submitter") or {}).get("email"),
+                               patch_author["email"]]
+            patch_author_company = self.dev_db.get_company(patch_author["email"]) \
+                if patch_author["email"] else None
+            forwarded = self._canonical_set([patch_author["email"]]) != \
+                self._canonical_set([author_email])
+
             # Get reviewers with source information
             comments = self.state.get_patch_comments(patch_id)
             reviewers_with_source = self._extract_reviewer_names_with_source(
-                patch, comments, author_email, cover_comments
+                patch, comments, submitting_side, cover_comments
             )
 
             # Convert to list of dicts for UI
             reviewers = []
             for name, (source, reviewer_email) in reviewers_with_source.items():
                 internal = False
-                if reviewer_email and author_company is not None:
+                if reviewer_email and patch_author_company is not None:
                     reviewer_company = self.dev_db.get_company(reviewer_email)
-                    if reviewer_company == author_company:
+                    if reviewer_company == patch_author_company:
                         internal = True
                 reviewers.append({"name": name, "source": source, "internal": internal})
 
             # Get commenters (people who commented without providing review tags)
             commenters = self._extract_commenters_without_tags(
-                comments, series["id"], author_email, cover_comments
+                comments, series["id"], submitting_side, cover_comments
             )
 
             patches_data.append(
                 {
                     "id": patch_id,
                     "name": patch.get("name", "Unknown"),
+                    # Only set if someone else than the series author wrote it
+                    "author": patch_author["name"] or patch_author["email"] if forwarded else None,
                     "score": patch_score.score,
                     "score_lines": [{"emoji": e, "comment": c, "adjustment": a} for e, c, a in patch_score.score_lines],
                     "checks_failed": failed_checks,
@@ -1910,7 +1941,14 @@ class SuieApp:
 
             # Get reviewers with source information for this patch
             comments = self.state.get_patch_comments(patch_id)
-            reviewers_with_source = self._extract_reviewer_names_with_source(patch, comments, author_email, cover_comments)
+            patch_author = self._patch_author(patch)
+            submitting_side = [author_email, (patch.get("submitter") or {}).get("email"),
+                               patch_author["email"]]
+            patch_author_company = self.dev_db.get_company(patch_author["email"]) \
+                if patch_author["email"] else None
+            reviewers_with_source = self._extract_reviewer_names_with_source(
+                patch, comments, submitting_side, cover_comments
+            )
 
             # For each reviewer in this patch, track them at series level
             for reviewer_name, (source, _email) in reviewers_with_source.items():
@@ -1990,9 +2028,9 @@ class SuieApp:
                 if not reviewer_email:
                     continue
 
-                # Check if this is an external reviewer
+                # Check if this is an external reviewer, to the patch's author
                 reviewer_company = self.dev_db.get_company(reviewer_email)
-                if reviewer_company == author_company and author_company is not None:
+                if reviewer_company == patch_author_company and patch_author_company is not None:
                     continue  # Skip internal reviewers
 
                 # Get canonical email for deduplication

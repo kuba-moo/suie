@@ -100,6 +100,7 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
     - Each failed check shows: check name + description
     - Clickable to open target URL (e.g., CI build page)
     - Styled with red accent for visibility
+  - Author, if someone else than the series author wrote the patch
   - Assigned delegate (if any)
   - Reviewers (extracted from Reviewed-by, Acked-by, Tested-by tags)
   - Check summary showing only missing checks and passing count
