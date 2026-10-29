@@ -239,6 +239,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             gap: 10px;
         }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         h1 {
             font-size: 24px;
             display: flex;
@@ -258,6 +264,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             flex-wrap: wrap;
             align-items: center;
             margin-top: 15px;
+        }
+
+        .controls > .fold-all.first {
+            order: -1;
+        }
+
+        .controls > .folded,
+        #filters-unfold[hidden] {
+            display: none;
+        }
+
+        #filters-unfold {
+            white-space: nowrap;
         }
 
         .control-group {
@@ -314,7 +333,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             height: 16px;
         }
 
-        #maint-filter-toggle.active {
+        #maint-filter-toggle.active,
+        #filters-unfold.active {
             background: var(--text-link);
             border-color: var(--text-link);
             color: var(--bg-primary);
@@ -979,10 +999,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <header>
             <div class="header-top">
                 <h1><img src="suie.png" alt="Suie">Suie - Patch Review Queue</h1>
-                <div class="stats">
-                    Generated: <span id="generated-time"></span> ago |
-                    Series: <span id="visible-series"></span> / <span id="total-series"></span> |
-                    Patches: <span id="visible-patches"></span> / <span id="total-patches"></span>
+                <div class="header-right">
+                    <div class="stats">
+                        Generated: <span id="generated-time"></span> ago |
+                        Series: <span id="visible-series"></span> / <span id="total-series"></span> |
+                        Patches: <span id="visible-patches"></span> / <span id="total-patches"></span>
+                    </div>
+                    <button id="theme-toggle" title="Toggle dark mode">🌓</button>
                 </div>
             </div>
             <div class="controls">
@@ -1056,12 +1079,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </div>
                 </div>
                 {% endif %}
-                <div class="control-group">
+                <div class="control-group fold-all">
                     <button id="fold-all" title="Collapse all expanded series">Fold All</button>
                 </div>
-                <div class="control-group">
-                    <button id="theme-toggle" title="Toggle dark mode">🌓</button>
-                </div>
+                <button id="filters-unfold" aria-expanded="false" hidden></button>
             </div>
         </header>
 
@@ -1092,6 +1113,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             loadFiltersFromURL();
             loadIncludeUnassigned();
             initMaintainersFilter();
+            initFilterFolding();
             renderSeries();
             updateStats();
 
@@ -1348,6 +1370,110 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             });
 
             updateMaintainersToggle();
+        }
+
+        // Only as many filters as fit on one line are shown, the rest are
+        // folded away behind a button. Filters left at their default go
+        // first, starting from the last one, set ones are what explains the
+        // queue. A set filter which still had to be folded away lights the
+        // button up, the queue is missing series and nothing else on the
+        // screen would say why. Fold All is folded away first while there is
+        // nothing to fold, and goes first and stays otherwise.
+        const FILTERS_UNFOLDED_STORAGE_KEY = 'suie.filters-unfolded';
+        let filtersUnfolded = false;
+        let seriesExpanded = false;
+
+        function filterName(group) {
+            const label = group.querySelector(':scope > label');
+            if (label) {
+                return label.textContent.replace(/:$/, '');
+            }
+            const button = group.querySelector('button');
+            return button.getAttribute('aria-label') || button.textContent;
+        }
+
+        function isFilterSet(group) {
+            if (group.querySelector(':scope > button.active')) {
+                return true;
+            }
+            return [...group.querySelectorAll(':scope > select, :scope > input')].some(el => {
+                if (el.type === 'checkbox') {
+                    return el.checked !== el.defaultChecked;
+                }
+                const initial = [...el.options].findIndex(opt => opt.defaultSelected);
+                return el.selectedIndex !== Math.max(initial, 0);
+            });
+        }
+
+        function layoutFilters() {
+            const bar = document.querySelector('.controls');
+            const button = document.getElementById('filters-unfold');
+            const foldAll = bar.querySelector('.fold-all');
+            const groups = [...bar.querySelectorAll(':scope > .control-group')];
+
+            groups.forEach(group => group.classList.remove('folded'));
+            foldAll.classList.remove('first');
+            button.hidden = true;
+
+            // Groups differ in height, anything starting below the bottom
+            // of the first one is on the next line
+            const lineEnd = groups[0].getBoundingClientRect().bottom;
+            const wrapped = el => el.getBoundingClientRect().top >= lineEnd;
+            if (!groups.some(wrapped)) {
+                return;
+            }
+
+            button.hidden = false;
+            button.setAttribute('aria-expanded', String(filtersUnfolded));
+            button.textContent = filtersUnfolded ? 'Hide filters ▴' : 'More filters ▾';
+            button.classList.remove('active');
+            button.title = '';
+            if (filtersUnfolded) {
+                return;
+            }
+
+            let foldable = groups;
+            if (seriesExpanded) {
+                foldAll.classList.add('first');
+                foldable = groups.filter(group => group !== foldAll);
+            }
+
+            const set = foldable.filter(isFilterSet);
+            const unset = foldable.filter(group => !set.includes(group));
+            for (const group of [...unset.reverse(), ...set.reverse()]) {
+                if (!wrapped(button)) {
+                    break;
+                }
+                group.classList.add('folded');
+            }
+
+            const folded = groups.filter(group => group.classList.contains('folded'));
+            const foldedSet = folded.filter(group => set.includes(group));
+            button.classList.toggle('active', foldedSet.length > 0);
+            button.title = folded.map(filterName).join(', ');
+            if (foldedSet.length) {
+                button.title += `\nSet: ${foldedSet.map(filterName).join(', ')}`;
+            }
+        }
+
+        function initFilterFolding() {
+            try {
+                filtersUnfolded = localStorage.getItem(FILTERS_UNFOLDED_STORAGE_KEY) === 'true';
+            } catch (err) {
+                console.error('Failed to load the filter folding:', err);
+            }
+
+            document.getElementById('filters-unfold').addEventListener('click', () => {
+                filtersUnfolded = !filtersUnfolded;
+                try {
+                    localStorage.setItem(FILTERS_UNFOLDED_STORAGE_KEY, String(filtersUnfolded));
+                } catch (err) {
+                    console.error('Failed to save the filter folding:', err);
+                }
+                layoutFilters();
+            });
+            window.addEventListener('resize', layoutFilters);
+            layoutFilters();
         }
 
         function matchesMaintainersFilter(series) {
@@ -1609,6 +1735,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             filteredSeries.forEach(series => {
                 container.appendChild(createSeriesRow(series));
             });
+            updateFoldAll();
 
             document.getElementById('visible-series').textContent = visibleCount;
             document.getElementById('visible-patches').textContent = visiblePatchCount;
@@ -2322,6 +2449,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // Click to expand
             header.addEventListener('click', () => {
                 row.classList.toggle('expanded');
+                updateFoldAll();
             });
 
             // Middle click to mute. Links keep their usual open-in-a-new-tab
@@ -2453,6 +2581,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             expandedRows.forEach(row => {
                 row.classList.remove('expanded');
             });
+            updateFoldAll();
+        }
+
+        function updateFoldAll() {
+            const expanded = document.querySelector('.series-row.expanded') !== null;
+            if (expanded !== seriesExpanded) {
+                seriesExpanded = expanded;
+                layoutFilters();
+            }
         }
 
         function updateStats() {
