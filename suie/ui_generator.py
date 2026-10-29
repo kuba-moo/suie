@@ -325,6 +325,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         #maint-filter-toggle {
             display: flex;
             align-items: center;
+            gap: 4px;
             padding: 6px 8px;
         }
 
@@ -1065,6 +1066,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 {% if maintainers_filter %}
                 <div class="control-group maint-filter">
                     <button id="maint-filter-toggle" aria-label="MAINTAINERS filter">
+                        Ⓜ
                         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                             <path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"/>
                         </svg>
