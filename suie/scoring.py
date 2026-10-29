@@ -44,6 +44,7 @@ class SeriesScore:
     patch_scores: List[PatchScore] = field(default_factory=list)
     score_lines: List[tuple] = field(default_factory=list)  # [(emoji|None, comment, adjustment), ...]
     machine_score: float = 0.0  # Same series scored for AUDIENCE_MACHINE
+    idle_hours: float = 0.0  # Since the last mail on the series, bots included
 
 
 class DeveloperDatabase:

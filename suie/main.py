@@ -636,7 +636,7 @@ class SuieApp:
 
         # Score the series
         expected_checks = self.config["ui"].get("expected_checks", [])
-        return self.scoring_engine.score_series(
+        series_score = self.scoring_engine.score_series(
             series,
             patches,
             checks_map,
@@ -649,6 +649,14 @@ class SuieApp:
             time_since_last_comment_hours,
             time_since_bot_comment_hours,
         )
+
+        # Idle since the last mail of any kind, the posting itself included
+        activity = [age_breakdown["total_hours"], *time_since_bot_comment_hours.values()]
+        if time_since_last_comment_hours is not None:
+            activity.append(time_since_last_comment_hours)
+        series_score.idle_hours = min(activity)
+
+        return series_score
 
     def _canonical_set(self, emails: list[str]) -> set:
         """Canonical identities of a list of email addresses, lower case"""
@@ -2220,6 +2228,7 @@ class SuieApp:
             "age_weekday_hours": age_breakdown["weekday_hours"],
             "age_weekend_hours": age_breakdown["weekend_hours"],
             "age_total_hours": age_breakdown["total_hours"],
+            "idle_hours": series_score.idle_hours,
             "score": series_score.score,
             "machine_score_zero_at": self._calculate_score_zero_time(series_score.machine_score),
             "score_lines": [{"emoji": e, "comment": c, "adjustment": a} for e, c, a in series_score.score_lines],

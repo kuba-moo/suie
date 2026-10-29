@@ -1040,6 +1040,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </select>
                 </div>
                 <div class="control-group">
+                    <label for="idle-filter">Idle time:</label>
+                    <select id="idle-filter">
+                        <option value="0">All</option>
+                        <option value="3">3h+</option>
+                        <option value="6">6h+</option>
+                        <option value="9">9h+</option>
+                        <option value="12">12h+</option>
+                        <option value="15">15h+</option>
+                        <option value="18">18h+</option>
+                        <option value="21">21h+</option>
+                        <option value="24">1d+</option>
+                        <option value="36">1.5d+</option>
+                        <option value="48">2d+</option>
+                        <option value="72">3d+</option>
+                    </select>
+                </div>
+                <div class="control-group">
                     <label for="delegate-filter">Delegate:</label>
                     <select id="delegate-filter">
                         <option value="">All</option>
@@ -1123,6 +1140,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             document.getElementById('show-inactive').addEventListener('change', renderSeries);
             document.getElementById('needs-ack-filter').addEventListener('change', renderSeries);
             document.getElementById('min-age-filter').addEventListener('change', renderSeries);
+            document.getElementById('idle-filter').addEventListener('change', renderSeries);
             document.getElementById('delegate-filter').addEventListener('change', onDelegateChange);
             document.getElementById('include-unassigned').addEventListener('change', onIncludeUnassignedChange);
             document.getElementById('tree-filter').addEventListener('change', onTreeChange);
@@ -1609,6 +1627,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const showInactive = document.getElementById('show-inactive').checked;
             const needsAckFilter = document.getElementById('needs-ack-filter').value;
             const minAgeFilter = parseInt(document.getElementById('min-age-filter').value);
+            const idleFilter = parseInt(document.getElementById('idle-filter').value);
             const delegateFilter = document.getElementById('delegate-filter').value;
             const includeUnassigned = document.getElementById('include-unassigned').checked;
             const treeFilter = document.getElementById('tree-filter').value;
@@ -1674,6 +1693,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                 // Apply minimum age filter (based on weekday hours)
                 if (minAgeFilter > 0 && series.age_weekday_hours < minAgeFilter) {
+                    return false;
+                }
+
+                // Apply idle time filter (wall clock, weekends count)
+                if (idleFilter > 0 && series.idle_hours < idleFilter) {
                     return false;
                 }
 

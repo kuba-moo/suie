@@ -108,6 +108,8 @@ The UI automatically calculates relative timestamps (e.g., "2h ago").
 - **Filtering**: Filter by delegate to see only series with patches assigned to specific people
   - Delegate filter updates the URL (e.g., `?delegate=john`)
   - Bookmarkable/shareable filtered views
+- **Idle time**: Hide series with mail more recent than the selected time,
+  replies from people and bots count, and so does the posting itself
 - **Inactive**: Toggle to show archived or completed series, off by default
   - The default can be changed with `ui.hide_inactive_default`
 - **Unassigned**: Toggle to show series nobody picked up yet, at the top of the
