@@ -120,7 +120,7 @@ def score_patch(context, patch_score):
     # Most newbies are LLM-happy, give then 24h of delay
     if poster_postings < 3:
         score += 24
-        patch_score.add_score_line(f"New author ({poster_postings} postings)", 0, '🟠')
+        patch_score.add_score_line(f"New author ({poster_postings} postings)", 24, '🟠')
     elif author_score < -40:
         # Give everyone a credit of 40, most occasional posters will be slightly
         # in the red on review scores.
